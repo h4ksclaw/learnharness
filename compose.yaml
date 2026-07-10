@@ -34,7 +34,7 @@ services:
     volumes:
       - ./:/app
     command: >
-      sh -c "python init_db.py &&
+      sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "${API_PORT:-8000}:8000"
@@ -58,7 +58,7 @@ services:
     volumes:
       - ./:/app
     command: >
-      sh -c "python init_db.py &&
+      sh -c "alembic upgrade head &&
              python -m app.worker"
 
   ollama:

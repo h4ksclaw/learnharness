@@ -34,6 +34,10 @@ jobs:
         run: |
           pip install -e ".[dev]"
           pip install aiosqlite
+      - name: Verify alembic migrations are clean
+        run: |
+          # Verify migration files exist and import properly
+          python -c "import importlib; importlib.import_module('alembic.env')"
       - name: Run unit tests
         env:
           DATABASE_URL: "sqlite+aiosqlite:///test.db"

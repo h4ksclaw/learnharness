@@ -9,6 +9,7 @@ OpenAI-compatible chat API with transparent learning intelligence:
 - Background heartbeat worker
 """
 
+import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -36,12 +37,20 @@ from app.routers import reviews
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables (dev mode — prod uses alembic)
+    # Migrations handled by alembic (compose.yaml runs `alembic upgrade head`)
+    # For dev without alembic, create_all still works as fallback
     async with engine.begin() as conn:
         from sqlalchemy import text
 
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(Base.metadata.create_all)
+        result = await conn.execute(
+            text("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+        )
+        count = result.scalar()
+        if count == 0:
+            # Fresh DB — no tables means alembic didn't run
+            with contextlib.suppress(Exception):
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
 
