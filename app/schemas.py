@@ -6,33 +6,26 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-# ─── Agent Personas ───
+# ─── Agent ───
 
 class AgentCreate(BaseModel):
     name: str
-    domain: str
-    description: str = ""
-    response_language: str = "en"
-    target_language: str | None = None
-    level: str = "B1"
-    system_prompt: str | None = None  # auto-generated if not provided
-    rules: dict[str, Any] = Field(default_factory=dict)
-    proactive: bool = True
+    master_prompt: str
+    tools: list[str] = Field(default_factory=lambda: ["web_search", "wikipedia"])
+    channels: dict[str, Any] = Field(default_factory=dict)
+    heartbeat_interval: int = 300
     llm_model: str | None = None
 
 
 class AgentOut(BaseModel):
     id: str
     name: str
-    description: str
-    domain: str
-    response_language: str
-    target_language: str | None
-    level: str
-    system_prompt: str
-    rules: dict[str, Any]
-    proactive: bool
+    master_prompt: str
+    tools: list[str]
+    channels: dict[str, Any]
+    heartbeat_interval: int
     llm_model: str | None
+    active: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -41,24 +34,20 @@ class AgentOut(BaseModel):
 # ─── Chat (OpenAI-compatible) ───
 
 class ChatMessage(BaseModel):
-    role: Literal["system", "user", "assistant"]
+    role: Literal["system", "user", "assistant", "tool"]
     content: str
 
 
 class ChatRequest(BaseModel):
-    """OpenAI-compatible chat completions request + learning extensions."""
-    # Standard OpenAI fields
     messages: list[ChatMessage]
     model: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     stream: bool = False
-
-    # LearnHarness extensions (ignored by standard OpenAI clients)
-    learner_id: str | None = None
+    # LearnHarness extensions
     agent_id: str | None = None
+    learner_id: str | None = None
     session_id: str | None = None
-    analyze: bool = True  # whether to run learning analysis on this message
 
 
 class Correction(BaseModel):
@@ -67,7 +56,6 @@ class Correction(BaseModel):
     rule: str = ""
     concept_id: str | None = None
     severity: Literal["error", "warning", "suggestion"] = "warning"
-    expandable: bool = True
 
 
 class MasteryDelta(BaseModel):
@@ -91,19 +79,18 @@ class ChatResponseUsage(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """OpenAI-compatible response + learning extensions."""
     id: str
     object: str = "chat.completion"
     created: int
     model: str
     choices: list[ChatResponseChoice]
     usage: ChatResponseUsage = Field(default_factory=ChatResponseUsage)
-
     # LearnHarness extensions
     corrections: list[Correction] = Field(default_factory=list)
     mastery_deltas: list[MasteryDelta] = Field(default_factory=list)
     concepts_detected: list[str] = Field(default_factory=list)
     reviews_due: list[dict[str, Any]] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ─── Mastery ───
@@ -120,9 +107,11 @@ class MasteryOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class MasteryGraphOut(BaseModel):
-    nodes: list[dict[str, Any]]
-    edges: list[dict[str, Any]]
+class CategoryProgress(BaseModel):
+    category: str
+    concept_count: int
+    avg_mastery: float
+    concepts: list[dict[str, Any]]
 
 
 # ─── Reviews ───
@@ -140,8 +129,7 @@ class ReviewItemOut(BaseModel):
 
 
 class ReviewAnswer(BaseModel):
-    rating: Literal[1, 2, 3, 4]  # FSRS rating: again, hard, good, easy
-    review_id: int
+    rating: Literal[1, 2, 3, 4]
 
 
 # ─── Learner ───
@@ -159,5 +147,26 @@ class LearnerOut(BaseModel):
     overall_mastery: float
     created_at: datetime
     last_active: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+# ─── Categories ───
+
+class CategoryCreate(BaseModel):
+    name: str
+    description: str = ""
+
+
+# ─── Outbound ───
+
+class OutboundMessageOut(BaseModel):
+    id: int
+    agent_id: str
+    learner_id: str | None
+    channel: str
+    message: str
+    sent: bool
+    created_at: datetime
 
     model_config = {"from_attributes": True}

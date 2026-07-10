@@ -88,20 +88,17 @@ class KnowledgeGraphEngine:
     async def analyze_message(
         self,
         user_message: str,
-        agent_domain: str,
-        agent_level: str = "B1",
-        target_language: str | None = None,
+        master_prompt: str,
         existing_concepts: list[str] | None = None,
     ) -> AnalysisResult:
         """Analyze a user message and extract structured learning data.
 
-        This is the core LLM call that powers the whole system.
+        The master_prompt gives context about what domain the agent covers.
         """
         existing_str = ", ".join(existing_concepts[:50]) if existing_concepts else "none"
 
-        context = f"""Domain: {agent_domain}
-Target level: {agent_level}
-Target language: {target_language or agent_domain}
+        context = f"""Agent context (first 500 chars): {master_prompt[:500]}
+
 Existing concepts in graph: {existing_str}
 
 Learner message:

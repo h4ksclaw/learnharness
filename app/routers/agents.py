@@ -1,10 +1,11 @@
-"""Agent CRUD router — create and manage tutor personas."""
+"""Agent CRUD — create and manage tutor agents."""
+
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.persona import create_agent, PRESETS
 from app.db import get_db
 from app.models import Agent, Learner
 from app.schemas import AgentCreate, AgentOut, LearnerCreate, LearnerOut
@@ -19,39 +20,16 @@ async def list_agents(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/v1/agents", response_model=AgentOut, status_code=201)
-async def create_agent_endpoint(req: AgentCreate, db: AsyncSession = Depends(get_db)):
-    agent = create_agent(
+async def create_agent(req: AgentCreate, db: AsyncSession = Depends(get_db)):
+    agent = Agent(
+        id=str(uuid.uuid4()),
         name=req.name,
-        domain=req.domain,
-        template=req.rules.get("template", "language_tutor"),
-        response_language=req.response_language,
-        target_language=req.target_language,
-        level=req.level,
-        extra_rules=req.rules.get("extra_rules", ""),
-        rules=req.rules,
-        proactive=req.proactive,
+        master_prompt=req.master_prompt,
+        tools=req.tools,
+        channels=req.channels,
+        heartbeat_interval=req.heartbeat_interval,
         llm_model=req.llm_model,
-        description=req.description,
-        system_prompt=req.system_prompt,
     )
-    db.add(agent)
-    await db.commit()
-    await db.refresh(agent)
-    return agent
-
-
-@router.get("/v1/agents/presets", response_model=dict)
-async def list_presets():
-    """List available agent presets for quick creation."""
-    return {name: f"Preset for {name}" for name in PRESETS}
-
-
-@router.post("/v1/agents/presets/{preset_name}", response_model=AgentOut, status_code=201)
-async def create_from_preset(preset_name: str, db: AsyncSession = Depends(get_db)):
-    """Create an agent from a preset (german_tutor, spanish_buddy, python_mentor, japanese_tutor)."""
-    if preset_name not in PRESETS:
-        raise HTTPException(404, f"Preset '{preset_name}' not found. Available: {list(PRESETS.keys())}")
-    agent = PRESETS[preset_name]()
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
@@ -66,6 +44,22 @@ async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     return agent
 
 
+@router.put("/v1/agents/{agent_id}", response_model=AgentOut)
+async def update_agent(agent_id: str, req: AgentCreate, db: AsyncSession = Depends(get_db)):
+    agent = (await db.execute(select(Agent).where(Agent.id == agent_id))).scalar_one_or_none()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    agent.name = req.name
+    agent.master_prompt = req.master_prompt
+    agent.tools = req.tools
+    agent.channels = req.channels
+    agent.heartbeat_interval = req.heartbeat_interval
+    agent.llm_model = req.llm_model
+    await db.commit()
+    await db.refresh(agent)
+    return agent
+
+
 @router.delete("/v1/agents/{agent_id}", status_code=204)
 async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     agent = (await db.execute(select(Agent).where(Agent.id == agent_id))).scalar_one_or_none()
@@ -75,12 +69,13 @@ async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
-# ─── Learner endpoints ───
+# ─── Learners ───
 
 @router.post("/v1/learners", response_model=LearnerOut, status_code=201)
 async def create_learner(req: LearnerCreate, db: AsyncSession = Depends(get_db)):
-    import uuid
-    learner = Learner(id=str(uuid.uuid4()), agent_id=req.agent_id, name=req.name, preferences=req.preferences)
+    learner = Learner(
+        id=str(uuid.uuid4()), agent_id=req.agent_id, name=req.name, preferences=req.preferences
+    )
     db.add(learner)
     await db.commit()
     await db.refresh(learner)

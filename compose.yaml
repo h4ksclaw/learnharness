@@ -1,37 +1,75 @@
 services:
   db:
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: learnharness
       POSTGRES_USER: lh
       POSTGRES_PASSWORD: lh_dev
-    ports:
-      - "5433:5432"
     volumes:
       - lh_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lh -d learnharness"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 10
 
   api:
     build: .
-    environment:
-      DATABASE_URL: postgresql+asyncpg://lh:lh_dev@db:5432/learnharness
-      LLM_BASE_URL: http://host.docker.internal:11434/v1
-      LLM_MODEL: llama3.2:3b
-      LLM_API_KEY: not-needed
-      LH_HOST: 0.0.0.0
-      LH_PORT: 8000
-    ports:
-      - "8000:8000"
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lh:lh_dev@db:5432/learnharness
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-300}
     volumes:
       - ./:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lh:lh_dev@db:5432/learnharness
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-300}
+    volumes:
+      - ./:/app
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.worker"
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - lh_ollama:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    # Uncomment for GPU support:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
 volumes:
   lh_pgdata:
+  lh_ollama:

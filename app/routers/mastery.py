@@ -1,19 +1,19 @@
 """Mastery and knowledge graph router."""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import Mastery, Concept, ConceptEdge, ErrorPattern
-from app.schemas import MasteryOut, MasteryGraphOut
+from app.models import Mastery, Concept, ConceptEdge, ErrorPattern, Learner
+from app.schemas import MasteryOut, CategoryProgress
 
 router = APIRouter()
 
 
 @router.get("/v1/mastery/{learner_id}", response_model=list[MasteryOut])
 async def get_mastery(learner_id: str, db: AsyncSession = Depends(get_db)):
-    """Get the learner's current mastery state across all concepts."""
+    """Get the learner's mastery state across all concepts."""
     stmt = (
         select(Mastery, Concept)
         .join(Concept, Mastery.concept_id == Concept.id)
@@ -35,66 +35,87 @@ async def get_mastery(learner_id: str, db: AsyncSession = Depends(get_db)):
     ]
 
 
-@router.get("/v1/mastery/{learner_id}/graph", response_model=MasteryGraphOut)
-async def get_mastery_graph(learner_id: str, db: AsyncSession = Depends(get_db)):
-    """Get the knowledge graph with mastery overlay — for visualization."""
-    # Get all mastery records for this learner
-    mastery_stmt = select(Mastery).where(Mastery.learner_id == learner_id)
-    mastery_map = {m.concept_id: m for m in (await db.execute(mastery_stmt)).scalars().all()}
+@router.get("/v1/mastery/{learner_id}/categories", response_model=list[CategoryProgress])
+async def get_category_progress(learner_id: str, db: AsyncSession = Depends(get_db)):
+    """Get progress grouped by category."""
+    stmt = (
+        select(Mastery, Concept)
+        .join(Concept, Mastery.concept_id == Concept.id)
+        .where(Mastery.learner_id == learner_id)
+    )
+    rows = (await db.execute(stmt)).all()
 
-    # Get the learner's agent to scope concepts
-    from app.models import Learner
+    categories: dict[str, list] = {}
+    for mastery, concept in rows:
+        cat = concept.category
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append({
+            "concept_id": concept.id,
+            "name": concept.name,
+            "mastery": mastery.p_mastery,
+            "difficulty": concept.difficulty,
+        })
+
+    result = []
+    for cat, concepts in categories.items():
+        avg = sum(c["mastery"] for c in concepts) / len(concepts)
+        result.append(CategoryProgress(
+            category=cat,
+            concept_count=len(concepts),
+            avg_mastery=avg,
+            concepts=concepts,
+        ))
+    return result
+
+
+@router.get("/v1/mastery/{learner_id}/graph")
+async def get_mastery_graph(learner_id: str, db: AsyncSession = Depends(get_db)):
+    """Get the knowledge graph with mastery overlay."""
     learner = (await db.execute(select(Learner).where(Learner.id == learner_id))).scalar_one_or_none()
     if not learner:
         raise HTTPException(404, "Learner not found")
 
-    # Get all concepts for this agent
+    mastery_map = {}
+    mastery_stmt = select(Mastery).where(Mastery.learner_id == learner_id)
+    for m in (await db.execute(mastery_stmt)).scalars().all():
+        mastery_map[m.concept_id] = m
+
     concepts = (
         await db.execute(select(Concept).where(Concept.agent_id == learner.agent_id))
     ).scalars().all()
 
-    # Build nodes with mastery overlay
     nodes = []
     for c in concepts:
         m = mastery_map.get(c.id)
         nodes.append({
-            "id": c.id,
-            "name": c.name,
-            "category": c.category,
+            "id": c.id, "name": c.name, "category": c.category,
             "difficulty": c.difficulty,
             "mastery": m.p_mastery if m else None,
             "interactions": m.interactions_count if m else 0,
         })
 
-    # Get edges
     concept_ids = {c.id for c in concepts}
     edges_stmt = select(ConceptEdge).where(
         ConceptEdge.source_id.in_(concept_ids),
         ConceptEdge.target_id.in_(concept_ids),
     )
-    edges_result = (await db.execute(edges_stmt)).scalars().all()
     edges = [
-        {
-            "source": e.source_id,
-            "target": e.target_id,
-            "type": e.edge_type,
-        }
-        for e in edges_result
+        {"source": e.source_id, "target": e.target_id, "type": e.edge_type}
+        for e in (await db.execute(edges_stmt)).scalars().all()
     ]
-
-    return MasteryGraphOut(nodes=nodes, edges=edges)
+    return {"nodes": nodes, "edges": edges}
 
 
 @router.get("/v1/mastery/{learner_id}/errors", response_model=list[dict])
 async def get_error_patterns(learner_id: str, db: AsyncSession = Depends(get_db)):
-    """Get recurring error patterns for this learner."""
+    """Get recurring error patterns."""
     stmt = (
         select(ErrorPattern, Concept)
         .join(Concept, ErrorPattern.concept_id == Concept.id)
         .where(ErrorPattern.learner_id == learner_id)
         .order_by(ErrorPattern.count.desc())
     )
-    rows = (await db.execute(stmt)).all()
     return [
         {
             "concept_name": c.name,
@@ -103,5 +124,25 @@ async def get_error_patterns(learner_id: str, db: AsyncSession = Depends(get_db)
             "examples": ep.examples[:5],
             "last_seen": ep.last_seen.isoformat(),
         }
-        for ep, c in rows
+        for ep, c in (await db.execute(stmt)).all()
     ]
+
+
+# ─── Concept management ───
+
+@router.post("/v1/concepts")
+async def add_concept(
+    agent_id: str, name: str, category: str = "general",
+    description: str = "", difficulty: float = 0.5,
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually add a concept to an agent's knowledge graph."""
+    import uuid
+    from app.models import Concept
+    concept = Concept(
+        id=str(uuid.uuid4()), agent_id=agent_id, name=name,
+        category=category, description=description, difficulty=difficulty,
+    )
+    db.add(concept)
+    await db.commit()
+    return {"id": concept.id, "name": concept.name}
