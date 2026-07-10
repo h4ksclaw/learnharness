@@ -15,7 +15,11 @@ services:
       retries: 10
 
   api:
-    build: .
+    build:
+      context: .
+      target: api
+    # To use prebuilt image from GHCR instead of building locally:
+    # image: ghcr.io/h4ksclaw/learnharness/api:latest
     restart: unless-stopped
     depends_on:
       db:
@@ -36,7 +40,10 @@ services:
       - "${API_PORT:-8000}:8000"
 
   worker:
-    build: .
+    build:
+      context: .
+      target: worker
+    # image: ghcr.io/h4ksclaw/learnharness/worker:latest
     restart: unless-stopped
     depends_on:
       db:
