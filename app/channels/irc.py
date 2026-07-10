@@ -10,8 +10,11 @@ Config (from agent.channels["irc"]):
         "nick": "LearnBot",
         "channels": ["#learnharness"],
         "password": null,         # NickServ password (optional)
-        "prefix": "!",            # command prefix (optional, default: direct mention)
-        "ssl": false              # use SSL (optional)
+        "ssl": false,             # use SSL (optional)
+        "allowed_users": ["mattf"],    # restrict who can talk (empty = all)
+        "blocked_users": ["spammer"], # always blocked
+        "allow_dms": true,        # respond to DMs
+        "require_mention": true   # only respond to mentions in channels
     }
 """
 
@@ -31,8 +34,7 @@ class IRCAdapter(BaseChannelAdapter):
     platform_name = "irc"
 
     def __init__(self, config: ChannelConfig, irc_config: dict):
-        super().__init__(config)
-        self.irc_config = irc_config
+        super().__init__(config, irc_config)
         self.host = irc_config.get("host", "irc.libera.chat")
         self.port = irc_config.get("port", 6667)
         self.nick = irc_config.get("nick", "LearnHarnessBot")
@@ -47,11 +49,11 @@ class IRCAdapter(BaseChannelAdapter):
 
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port, ssl=ssl_ctx)
 
-        # Register
+        self._bot_user_id = self.nick
+
         self._send_raw(f"NICK {self.nick}")
         self._send_raw(f"USER {self.nick} 0 * :{self.config.agent_name}")
 
-        # NickServ auth
         if self.password:
             await asyncio.sleep(1)
             self._send_raw(f"PRIVMSG NickServ :IDENTIFY {self.nick} {self.password}")
@@ -73,24 +75,19 @@ class IRCAdapter(BaseChannelAdapter):
             log.debug("IRC → %s", line)
 
     async def send_message(self, channel_id: str, text: str) -> None:
-        """Send a message to an IRC channel or user."""
-        # IRC limit: 512 bytes per message including headers
-        # Split long messages
         for line in text.split("\n"):
             line = line.strip()
             if not line:
                 continue
-            # Truncate to ~400 chars per message
             while line:
                 chunk = line[:400]
                 line = line[400:]
                 self._send_raw(f"PRIVMSG {channel_id} :{chunk}")
                 if self.writer:
                     await self.writer.drain()
-                await asyncio.sleep(0.3)  # Rate limit
+                await asyncio.sleep(0.3)
 
     async def listen(self) -> None:
-        """Main IRC listen loop — called by the channel manager."""
         while self._running and self.reader:
             try:
                 raw = await self.reader.readline()
@@ -101,53 +98,59 @@ class IRCAdapter(BaseChannelAdapter):
                 line = raw.decode(errors="replace").strip()
                 log.debug("IRC ← %s", line)
 
-                # Handle PING/PONG
                 if line.startswith("PING"):
                     self._send_raw(line.replace("PING", "PONG", 1))
                     continue
 
-                # Parse PRIVMSG
                 if " PRIVMSG " not in line:
                     continue
 
-                # Parse: :nick!user@host PRIVMSG #channel :message
                 try:
                     prefix, rest = line[1:].split(" ", 1)
                     nick = prefix.split("!")[0]
+                    user_host = prefix.split("!")[1] if "!" in prefix else ""
                     parts = rest.split(" ", 2)
                     cmd = parts[0]
                     target = parts[1]
                     msg_text = parts[2][1:] if len(parts) > 2 else ""
 
-                    # Only handle channel messages or direct messages
                     if cmd != "PRIVMSG":
                         continue
 
-                    # Respond in channel if mentioned, or to bot directly
-                    is_dm = target == self.nick
+                    is_dm = target.lower() == self.nick.lower()
                     is_mentioned = self.nick.lower() in msg_text.lower()
 
-                    if not is_dm and not is_mentioned:
-                        # Still join configured channels
-                        continue
+                    # Only respond in configured channels (not DMs)
+                    if not is_dm:
+                        configured = {c.lower() for c in self.channels}
+                        if target.lower() not in configured:
+                            continue
 
-                    # Remove the bot nick from the message
+                    # Clean the message text
                     clean_text = msg_text.replace(self.nick, "").strip()
                     if clean_text.startswith(":"):
                         clean_text = clean_text[1:].strip()
                     if not clean_text:
                         continue
 
-                    # Use the channel where the message came from
                     reply_target = nick if is_dm else target
 
                     inbound = InboundMessage(
                         text=clean_text,
                         sender_name=nick,
+                        sender_id=nick,
                         channel_id=reply_target,
                         platform="irc",
-                        metadata={"user_id": nick},
+                        is_dm=is_dm,
+                        metadata={"user_host": user_host},
                     )
+
+                    # Access control check
+                    allowed, reason = self.check_access(inbound, is_mentioned=is_mentioned)
+                    if not allowed:
+                        log.debug("IRC: denying %s — %s", nick, reason)
+                        continue
+
                     asyncio.create_task(self.handle_inbound(inbound))
 
                 except (ValueError, IndexError):
@@ -157,13 +160,11 @@ class IRCAdapter(BaseChannelAdapter):
                 log.exception("IRC listen error")
                 break
 
-        # Auto-reconnect
         if self._running:
             log.info("IRC reconnecting in 5s...")
             await asyncio.sleep(5)
             try:
                 await self.connect()
-                # Rejoin channels
                 for ch in self.channels:
                     self._send_raw(f"JOIN {ch}")
                 await self.listen()
@@ -171,7 +172,6 @@ class IRCAdapter(BaseChannelAdapter):
                 log.exception("IRC reconnect failed")
 
     async def join_channels(self) -> None:
-        """Join all configured channels after registration."""
         await asyncio.sleep(2)
         for ch in self.channels:
             self._send_raw(f"JOIN {ch}")
