@@ -2,194 +2,174 @@
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend Layer                           │
-│                                                                  │
-│  Web UI (Next.js)    IRC Bot    Telegram Bot    Flutter App     │
-│  management + chat   text-only   inline btns    mobile push     │
-└──────────────┬───────────────────────────────────────────────────┘
-               │ HTTP / SSE / WebSocket
-┌──────────────▼───────────────────────────────────────────────────┐
-│                      FastAPI Backend                             │
-│                                                                  │
-│  ┌─────────────────────────────────────────────────────────┐     │
-│  │                    API Layer                              │     │
-│  │                                                           │     │
-│  │  POST /v1/chat/completions  (OpenAI-compatible)          │     │
-│  │  GET/POST /v1/agents        (persona CRUD)               │     │
-│  │  GET /v1/mastery/{id}       (knowledge state)            │     │
-│  │  GET /v1/reviews/{id}       (FSRS due items)            │     │
-│  │  GET /v1/heartbeat          (proactive actions)          │     │
-│  └─────────────────────────────────────────────────────────┘     │
-│                              │                                   │
-│  ┌───────────────────────────▼──────────────────────────────┐    │
-│  │                   Agent Harness                           │    │
-│  │                                                           │    │
-│  │  1. Analyze message (KG engine)                          │    │
-│  │  2. Update knowledge graph + mastery (BKT)                │    │
-│  │  3. Build enriched system prompt (persona + context)     │    │
-│  │  4. Forward to LLM (any provider)                        │    │
-│  │  5. Return response + corrections + deltas               │    │
-│  └───────────────────────────┬──────────────────────────────┘    │
-│                              │                                   │
-│  ┌───────────┬───────────────┼───────────────┬─────────────────┐ │
-│  │  KG       │  BKT          │  FSRS         │  Scheduler      │ │
-│  │  Engine   │  Tracer       │  Scheduler    │  (Heartbeat)    │ │
-│  │           │               │               │                 │ │
-│  │  concept  │  mastery      │  review       │  due reviews    │ │
-│  │  extract  │  prob update  │  scheduling   │  inactive       │ │
-│  │  graph    │  per concept  │  interval     │  checkins       │ │
-│  │  query    │  0-1          │  calc         │  weak spots     │ │
-│  └───────────┴───────────────┴───────────────┴─────────────────┘ │
-│                              │                                   │
-│  ┌───────────────────────────▼──────────────────────────────┐    │
-│  │                    LLM Router                             │    │
-│  │                                                           │    │
-│  │  Ollama (local)  OpenAI  DeepSeek  vLLM  OpenRouter      │    │
-│  │  LM Studio  Gemini  Any OpenAI-compatible endpoint       │    │
-│  └──────────────────────────────────────────────────────────┘    │
-└──────────────────────────────┬───────────────────────────────────┘
-                               │
-┌──────────────────────────────▼───────────────────────────────────┐
-│                    PostgreSQL + pgvector                          │
-│                                                                  │
-│  agents          learner profiles + system prompts              │
-│  learners        user state                                      │
-│  concepts        KG nodes (name, category, difficulty, embedding)│
-│  concept_edges   KG edges (prerequisite, related, contrasts)     │
-│  mastery         per-concept BKT state per learner               │
-│  review_items    FSRS scheduling state per concept per learner   │
-│  interactions    full chat/quiz/flashcard event log              │
-│  error_patterns  recurring mistakes per concept                  │
-└──────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Frontend["Frontend Layer"]
+        Web["Web UI<br/>management + chat"]
+        IRC["IRC Bot<br/>text-only"]
+        TG["Telegram Bot<br/>inline buttons"]
+        CLI["CLI / curl<br/>any OpenAI client"]
+    end
+
+    Frontend -- "HTTP" --> API
+
+    subgraph Backend["FastAPI Backend"]
+        API["POST /v1/chat/completions<br/>GET/POST /v1/agents<br/>GET /v1/mastery · /v1/reviews<br/>GET /v1/outbound"]
+
+        subgraph Harness["Agent Harness"]
+            H["1. Analyze message (KG engine)<br/>2. Update knowledge graph + mastery (BKT)<br/>3. Build enriched system prompt<br/>4. Forward to LLM with tools<br/>5. Return response + corrections + deltas"]
+        end
+
+        subgraph Engines["Learning Engines"]
+            KG["KG Engine<br/>Concept extraction<br/>Graph building"]
+            BKT["BKT Tracer<br/>Mastery probability<br/>Per concept"]
+            FSRS["FSRS Scheduler<br/>Review scheduling<br/>Interval calculation"]
+            SCHED["Scheduler<br/>Due reviews<br/>Inactive checkins<br/>Weak spot focus"]
+        end
+
+        LLM["LLM Router<br/>Ollama · OpenAI · vLLM<br/>Any OpenAI-compatible"]
+    end
+
+    subgraph Data["PostgreSQL + pgvector"]
+        T1["agents — master prompts + config"]
+        T2["learners — user state"]
+        T3["concepts — KG nodes + embeddings"]
+        T4["concept_edges — KG relationships"]
+        T5["mastery — per-concept BKT state"]
+        T6["review_items — FSRS scheduling"]
+        T7["interactions — event log"]
+        T8["error_patterns — recurring mistakes"]
+        T9["outbound_messages — proactive queue"]
+    end
+
+    API --> Harness
+    H --> KG
+    H --> BKT
+    H --> FSRS
+    H --> LLM
+    SCHED --> FSRS
+    KG --> Data
+    BKT --> Data
+    FSRS --> Data
+
+    style Frontend fill:#1a1a2e,stroke:#4EC9B0,color:#4EC9B0
+    style Backend fill:#1a1a2e,stroke:#569CD6,color:#569CD6
+    style Data fill:#1a1a2e,stroke:#C586C0,color:#C586C0
 ```
 
 ## Data Model
 
-### Core Tables
+```mermaid
+erDiagram
+    agents ||--o{ learners : "has"
+    agents ||--o{ concepts : "owns"
+    agents ||--o{ interactions : "logs"
+    agents ||--o{ outbound_messages : "sends"
+    learners ||--o{ mastery : "tracks"
+    learners ||--o{ review_items : "reviews"
+    learners ||--o{ interactions : "has"
+    learners ||--o{ error_patterns : "has"
+    concepts ||--o{ concept_edges : "source"
+    concepts ||--o{ concept_edges : "target"
+    concepts ||--o{ mastery : "assessed by"
+    concepts ||--o{ review_items : "tested by"
+    concepts ||--o{ error_patterns : "has"
 
-```
-agents
-├── id, name, domain, description
-├── response_language, target_language, level
-├── system_prompt (the "master prompt" — auto-generated or custom)
-├── rules (JSONB — template type, extra rules)
-├── proactive (bool — should this agent reach out?)
-└── llm_model (optional per-agent model override)
+    agents {
+        string id PK
+        string name
+        text master_prompt
+        jsonb tools
+        jsonb channels
+        int heartbeat_interval
+        string llm_model
+        bool active
+    }
 
-learners
-├── id, agent_id, name
-├── overall_mastery (aggregate estimate)
-├── preferences (JSONB)
-└── last_active
+    learners {
+        string id PK
+        string agent_id FK
+        string name
+        float overall_mastery
+        jsonb preferences
+        datetime last_active
+    }
 
-concepts (knowledge graph nodes)
-├── id, agent_id
-├── name (e.g. "ser vs estar", "list comprehension")
-├── category (e.g. "grammar", "syntax", "vocabulary")
-├── description
-├── difficulty (0-1)
-└── embedding (Vector(1536) for semantic search)
+    concepts {
+        string id PK
+        string agent_id FK
+        string name
+        string category
+        text description
+        float difficulty
+        vector embedding
+    }
 
-concept_edges (knowledge graph relationships)
-├── source_id → target_id
-├── edge_type: prerequisite | related | part_of | contrasts_with
-└── weight
+    mastery {
+        int id PK
+        string learner_id FK
+        string concept_id FK
+        float p_mastery
+        float p_transit
+        float p_slip
+        float p_guess
+        int interactions_count
+        int correct_count
+    }
 
-mastery (BKT state — per learner per concept)
-├── learner_id, concept_id
-├── p_mastery (0-1 probability the learner has mastered this)
-├── p_transit, p_slip, p_guess (BKT parameters)
-├── interactions_count, correct_count
-└── last_updated
-
-review_items (FSRS scheduling state)
-├── learner_id, concept_id
-├── content (JSONB — flashcard front/back, exercise, etc.)
-├── stability, difficulty (FSRS memory model)
-├── reps, lapses, state
-├── last_review, next_review
-└── elapsed_days, scheduled_days
-
-interactions (event log)
-├── learner_id, agent_id, session_id
-├── type: chat | quiz | flashcard | correction
-├── user_input, agent_response
-├── correct (null for chat, bool for quizzes)
-├── concept_ids[] (which concepts were involved)
-├── corrections[] (structured error data)
-└── mastery_deltas (before/after snapshot)
-
-error_patterns
-├── learner_id, concept_id
-├── error_type (the rule violated)
-├── count, examples[]
-└── last_seen
+    review_items {
+        int id PK
+        string learner_id FK
+        string concept_id FK
+        jsonb content
+        float stability
+        float difficulty
+        int reps
+        int lapses
+        int state
+        datetime next_review
+    }
 ```
 
 ## Chat Pipeline
 
 Every message goes through this pipeline:
 
-```
-User sends message to POST /v1/chat/completions
-         │
-         ▼
-    ┌─────────────────────────────────────┐
-    │ 1. CONCEPT EXTRACTION               │
-    │    LLM analyzes user message        │
-    │    Output: {concepts, edges,        │
-    │    corrections, mastery_signals,    │
-    │    needs_review}                    │
-    └──────────────┬──────────────────────┘
-                   │
-    ┌──────────────▼──────────────────────┐
-    │ 2. KNOWLEDGE GRAPH UPDATE           │
-    │    Upsert concepts into DB          │
-    │    Add edges (prerequisites etc.)   │
-    │    Record error patterns            │
-    └──────────────┬──────────────────────┘
-                   │
-    ┌──────────────▼──────────────────────┐
-    │ 3. MASTERY UPDATE (BKT)             │
-    │    For each concept detected:       │
-    │    Update P(mastery) using BKT      │
-    │    with soft inference from LLM     │
-    │    confidence signal                │
-    └──────────────┬──────────────────────┘
-                   │
-    ┌──────────────▼──────────────────────┐
-    │ 4. CONTEXT BUILDING                 │
-    │    Query learner's current state:   │
-    │    - Weak areas (< 0.5 mastery)     │
-    │    - Mastered concepts (> 0.8)      │
-    │    - Due reviews                    │
-    │    Inject into system prompt        │
-    └──────────────┬──────────────────────┘
-                   │
-    ┌──────────────▼──────────────────────┐
-    │ 5. LLM CALL                         │
-    │    Enhanced system prompt +         │
-    │    conversation history → LLM       │
-    │    (any OpenAI-compatible provider) │
-    └──────────────┬──────────────────────┘
-                   │
-    ┌──────────────▼──────────────────────┐
-    │ 6. RESPONSE ASSEMBLY                │
-    │    OpenAI-shaped response +         │
-    │    corrections[]                    │
-    │    mastery_deltas[]                 │
-    │    concepts_detected[]              │
-    │    reviews_due[]                    │
-    └──────────────┬──────────────────────┘
-                   │
-    ┌──────────────▼──────────────────────┐
-    │ 7. PERSIST + RETURN                 │
-    │    Save interaction to DB           │
-    │    Update learner.last_active       │
-    │    Return to client                 │
-    └─────────────────────────────────────┘
+```mermaid
+flowchart TD
+    START([User sends message]) --> P1
+
+    P1["① CONCEPT EXTRACTION<br/>LLM analyzes user message<br/>→ concepts, edges, corrections, mastery signals"]
+    P1 --> P2
+
+    P2["② KNOWLEDGE GRAPH UPDATE<br/>Upsert concepts into DB<br/>Add prerequisite edges<br/>Record error patterns"]
+    P2 --> P3
+
+    P3["③ MASTERY UPDATE — BKT<br/>For each concept detected:<br/>Update P(mastery) using BKT<br/>with soft inference from LLM confidence"]
+    P3 --> P4
+
+    P4["④ CONTEXT BUILDING<br/>Query learner's current state:<br/>Weak areas < 50%<br/>Mastered concepts > 80%<br/>Inject into system prompt"]
+    P4 --> P5
+
+    P5{"Agent has<br/>tools?"}
+    P5 -- Yes --> P5A["⑤ LLM CALL WITH TOOLS<br/>Enhanced prompt + history<br/>LLM may call: web_search, wikipedia, arxiv<br/>Tool results fed back to LLM"]
+    P5 -- No --> P5B["⑤ LLM CALL<br/>Enhanced prompt + history<br/>→ LLM generates response"]
+    P5A --> P6
+    P5B --> P6
+
+    P6["⑥ RESPONSE ASSEMBLY<br/>OpenAI-shaped response +<br/>corrections, mastery_deltas,<br/>concepts_detected, reviews_due"]
+    P6 --> P7
+
+    P7([⑦ PERSIST + RETURN<br/>Save interaction to DB<br/>Update learner.last_active])
+
+    style P1 fill:#4EC9B0,stroke:none,color:#000
+    style P2 fill:#C586C0,stroke:none,color:#000
+    style P3 fill:#569CD6,stroke:none,color:#000
+    style P4 fill:#CE9178,stroke:none,color:#000
+    style P5A fill:#6A9955,stroke:none,color:#000
+    style P5B fill:#6A9955,stroke:none,color:#000
+    style P6 fill:#DCDCAA,stroke:none,color:#000
+    style P7 fill:#F44747,stroke:none,color:#fff
 ```
 
 ## Frontend Protocol
@@ -200,20 +180,18 @@ The API returns a standard OpenAI response with optional extension fields:
 {
   "id": "chatcmpl-...",
   "object": "chat.completion",
-  "model": "llama3.2:3b",
+  "model": "qwen2.5:3b",
   "choices": [{
     "message": {"role": "assistant", "content": "Das ist richtig! ..."},
     "finish_reason": "stop"
   }],
 
-  // ── LearnHarness extensions (ignored by standard clients) ──
   "corrections": [{
     "original": "ich bin müde",
     "corrected": "ich habe mühe",
     "rule": "Use 'haben' with 'Mühe'",
     "concept_id": "haben_vs_sein",
-    "severity": "warning",
-    "expandable": true
+    "severity": "warning"
   }],
   "mastery_deltas": [{
     "concept": "haben_vs_sein",
@@ -235,17 +213,37 @@ The API returns a standard OpenAI response with optional extension fields:
 
 ## Proactive Scheduler (Heartbeat)
 
-The scheduler runs on a configurable interval and checks each learner:
+```mermaid
+flowchart LR
+    TICK[Heartbeat tick<br/>every 60s] --> LOOP
 
-```
-Every 4 hours:
-  For each learner with proactive agent:
-    1. Are FSRS reviews due? → "You have 3 reviews waiting"
-    2. Inactive > 24h? → "Want to practice some German?"
-    3. Weakest concept < 0.3? → "Let's work on adjective endings"
+    subgraph LOOP["For each active agent"]
+        CHECK{"Time since<br/>last heartbeat<br/>≥ interval?"}
+        CHECK -- No --> SKIP[Skip]
+        CHECK -- Yes --> L1
 
-  Emit HeartbeatResult → frontend delivers via its channel
-  (IRC PRIVMSG, Telegram push, web notification)
+        subgraph L1["For each learner"]
+            R{"FSRS reviews<br/>due?"}
+            R -- Yes --> MSG1["📝 Review reminder<br/>'You have N reviews due'"]
+
+            I{"Inactive<br/>> 24h?"}
+            I -- Yes --> MSG2["👋 Inactivity checkin<br/>'Want to practice?'"]
+
+            W{"Weakest concept<br/>< 30%?"}
+            W -- Yes --> MSG3["🎯 Weak spot focus<br/>'Let's work on X'"]
+        end
+
+        MSG1 --> Q[Outbound message queue]
+        MSG2 --> Q
+        MSG3 --> Q
+    end
+
+    Q --> ADAPTER["Channel Adapters<br/>poll /v1/outbound"]
+    ADAPTER --> DELIVER["Deliver via IRC<br/>Telegram · Web push"]
+
+    style TICK fill:#FF9800,stroke:none,color:#000
+    style Q fill:#569CD6,stroke:none,color:#000
+    style DELIVER fill:#4EC9B0,stroke:none,color:#000
 ```
 
 ## File Structure
@@ -253,39 +251,42 @@ Every 4 hours:
 ```
 learnharness/
 ├── app/
-│   ├── main.py              # FastAPI app, lifespan, router registration
-│   ├── config.py            # Environment-driven settings
-│   ├── db.py                # Async SQLAlchemy session
-│   ├── models/
-│   │   └── __init__.py      # All ORM models (7 tables)
-│   ├── schemas/
-│   │   └── __init__.py      # Pydantic request/response models
+│   ├── main.py                  # FastAPI app, lifespan, router registration
+│   ├── config.py                # Environment-driven settings
+│   ├── db.py                    # Async SQLAlchemy session
+│   ├── models.py                # All ORM models (9 tables)
+│   ├── schemas.py               # Pydantic request/response models
+│   ├── harness.py               # Main agent chat processing pipeline
+│   ├── tools.py                 # Agent tools (web_search, wikipedia, arxiv)
+│   ├── worker.py                # Background heartbeat worker
 │   ├── routers/
-│   │   ├── chat.py          # POST /v1/chat/completions
-│   │   ├── agents.py        # Agent + Learner CRUD
-│   │   ├── mastery.py       # Knowledge state + graph queries
-│   │   ├── reviews.py       # FSRS review management
-│   │   └── heartbeat.py     # Proactive scheduler endpoints
-│   ├── engine/
-│   │   ├── llm.py           # OpenAI-compatible LLM router
-│   │   ├── fsrs_sched.py    # FSRS spaced repetition
-│   │   ├── knowledge_tracing.py  # BKT mastery estimation
-│   │   └── knowledge_graph.py    # LLM concept extraction + graph mgmt
-│   └── agents/
-│       ├── persona.py       # Agent persona templates + builder
-│       ├── harness.py       # Main chat processing pipeline
-│       └── scheduler.py     # Proactive heartbeat
+│   │   ├── chat.py              # POST /v1/chat/completions
+│   │   ├── agents.py            # Agent + Learner CRUD
+│   │   ├── mastery.py           # Knowledge state + graph queries
+│   │   ├── reviews.py           # FSRS review management
+│   │   └── heartbeat.py         # Outbound message queue
+│   └── engine/
+│       ├── llm.py               # OpenAI-compatible LLM router + instructor
+│       ├── fsrs_sched.py        # FSRS spaced repetition
+│       ├── knowledge_tracing.py # BKT mastery estimation
+│       └── knowledge_graph.py   # LLM concept extraction + graph mgmt
 ├── tests/
-│   ├── test_knowledge_tracing.py
-│   ├── test_fsrs.py
-│   ├── test_persona.py
-│   ├── test_llm.py
-│   └── test_api.py
+│   ├── test_fsrs_time.py        # Time-simulated FSRS tests (20)
+│   ├── test_bkt_comprehensive.py # BKT convergence/dynamics (19)
+│   ├── test_knowledge_tracing.py # Basic BKT (5)
+│   ├── test_fsrs.py             # Basic FSRS (4)
+│   ├── test_models.py           # Model validation (2)
+│   ├── test_tools.py            # Live tool tests (3)
+│   └── test_learning_simulation.py # E2E 8-turn conversation
+├── .github/workflows/
+│   ├── tests.yml                # Python 3.11+3.12 matrix CI
+│   └── docker.yml               # Docker compose verification
 ├── docs/
-│   ├── VISION.md            # Vision + design decisions
-│   └── ARCHITECTURE.md      # This file
-├── compose.yaml             # Postgres+pgvector + API
+│   ├── VISION.md                # Vision + design decisions
+│   └── ARCHITECTURE.md          # This file
+├── compose.yaml                 # Postgres+pgvector + API + worker + ollama
 ├── Dockerfile
+├── init_db.py                   # DB initialization script
 ├── pyproject.toml
 └── README.md
 ```

@@ -38,46 +38,96 @@ curl -X POST localhost:8000/v1/chat/completions -H 'Content-Type: application/js
 
 ## How It Works
 
-```
-User sends message
-    ↓
-① LLM analyzes → extracts concepts, corrections, mastery signals
-② Knowledge graph updated (concepts + prerequisite edges)
-③ BKT mastery updated per concept
-④ Learner context injected into system prompt
-⑤ LLM generates response (can use tools: web_search, arxiv, wikipedia)
-⑥ Returns OpenAI-shaped response + corrections, mastery deltas, due reviews
+```mermaid
+flowchart TD
+    U[User sends message] --> A[① LLM Analyzes<br/>Extracts concepts, corrections, mastery signals]
+    A --> B[② Knowledge Graph Updated<br/>Concepts + prerequisite edges]
+    B --> C[③ BKT Mastery Updated<br/>Per-concept probability shifts]
+    C --> D[④ Learner Context Injected<br/>Weak areas + strong areas → system prompt]
+    D --> E[⑤ LLM Generates Response<br/>Can call tools: web_search, arxiv, wikipedia]
+    E --> F[⑥ Returns Enriched Response<br/>OpenAI-shaped + corrections + mastery deltas + due reviews]
 
-Background worker (heartbeat):
-  Checks FSRS reviews → generates proactive messages → writes to outbound queue
+    style A fill:#4EC9B0,stroke:none,color:#000
+    style B fill:#C586C0,stroke:none,color:#000
+    style C fill:#569CD6,stroke:none,color:#000
+    style D fill:#CE9178,stroke:none,color:#000
+    style E fill:#4EC9B0,stroke:none,color:#000
+    style F fill:#6A9955,stroke:none,color:#000
 ```
 
 ## Architecture
 
+```mermaid
+graph TB
+    subgraph Frontends["Any Frontend"]
+        Web[Web UI]
+        IRC[IRC Bot]
+        TG[Telegram Bot]
+        CLI[CLI / curl]
+    end
+
+    Frontends -- "HTTP / OpenAI-compatible API" --> API
+
+    subgraph Backend["FastAPI Backend"]
+        API["POST /v1/chat/completions<br/>OpenAI-compatible"]
+
+        subgraph Harness["Agent Harness"]
+            MP["Master Prompt<br/>+ Learner Context<br/>+ Tool Execution Loop"]
+        end
+
+        subgraph Engines["Learning Engines"]
+            KG["KG Engine<br/>Concept extraction<br/>& graph building"]
+            BKT["BKT<br/>Bayesian Knowledge<br/>Tracing"]
+            FSRS["FSRS<br/>Spaced Repetition<br/>Scheduler"]
+        end
+
+        WORKER["Background Worker<br/>Heartbeat scheduler<br/>→ outbound queue"]
+        TOOLS["Tools<br/>web_search · browse_url<br/>wikipedia · arxiv"]
+        LLM["LLM Router<br/>Ollama · vLLM · OpenAI<br/>Any OpenAI-compatible"]
+    end
+
+    subgraph Data["Data Layer"]
+        PG[("PostgreSQL<br/>+ pgvector")]
+        OLLAMA["Ollama<br/>qwen2.5:3b"]
+    end
+
+    API --> Harness
+    MP --> KG
+    MP --> BKT
+    MP --> FSRS
+    MP --> TOOLS
+    MP --> LLM
+    WORKER --> FSRS
+    WORKER --> BKT
+    KG --> PG
+    BKT --> PG
+    FSRS --> PG
+    LLM --> OLLAMA
+
+    style Frontends fill:#1e1e1e,stroke:#4EC9B0,color:#4EC9B0
+    style Backend fill:#1e1e1e,stroke:#569CD6,color:#569CD6
+    style Data fill:#1e1e1e,stroke:#C586C0,color:#C586C0
 ```
-                    ┌────────────────────────────────┐
-                    │        Any Frontend             │
-                    │  Web UI · IRC bot · Telegram ·  │
-                    │  Flutter · CLI · Anything       │
-                    └──────────┬─────────────────────┘
-                               │ HTTP
-                    ┌──────────▼─────────────────────┐
-                    │     FastAPI Backend (API)       │
-                    │  POST /v1/chat/completions      │
-                    │  (OpenAI-compatible)            │
-                    ├──────────────────────────────────┤
-                    │  Agent Harness                   │
-                    │  master prompt + learner context │
-                    │  + tool execution loop           │
-                    ├──────┬──────┬──────┬─────────────┤
-                    │ KG   │ BKT  │ FSRS │ Worker      │
-                    │ Engine│      │      │ (heartbeat) │
-                    ├──────┴──────┴──────┴─────────────┤
-                    │  LLM Router (any OAI-compatible) │
-                    └──────────┬─────────────────────┘
-                    ┌──────────▼─────────────────────┐
-                    │  PostgreSQL + pgvector          │
-                    └────────────────────────────────┘
+
+## Container Stack
+
+```mermaid
+graph LR
+    subgraph Docker Compose
+        DB[("db<br/>pgvector/pgvector:pg16<br/>:5432")]
+        API2["api<br/>FastAPI + uvicorn<br/>:8000"]
+        WRK["worker<br/>Heartbeat loop"]
+        OLL["ollama<br/>LLM inference<br/>:11434"]
+    end
+
+    API2 --> DB
+    WRK --> DB
+    API2 --> OLL
+
+    style DB fill:#336791,stroke:none,color:#fff
+    style API2 fill:#009688,stroke:none,color:#fff
+    style WRK fill:#FF9800,stroke:none,color:#fff
+    style OLL fill:#4A154B,stroke:none,color:#fff
 ```
 
 ## Tech Stack
@@ -115,8 +165,9 @@ Background worker (heartbeat):
 - [x] Agent model (master prompt + tools + channels + heartbeat)
 - [x] Background worker with proactive scheduling
 - [x] Outbound message queue for multi-channel delivery
-- [x] 14/14 tests passing
+- [x] 55 unit tests + e2e simulation (all passing)
 - [x] Docker Compose (db + api + worker + ollama)
+- [x] GitHub Actions CI (Python 3.11 + 3.12)
 - [ ] Alembic migrations
 - [ ] Web UI
 - [ ] Channel adapters (IRC, Telegram)
