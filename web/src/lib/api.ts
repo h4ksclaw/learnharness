@@ -4,7 +4,9 @@
  * The OpenAPI spec at /openapi.json documents all endpoints.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" ? "http://localhost:8000" : "http://api:8000");
 
 export interface Agent {
   id: string;

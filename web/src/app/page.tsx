@@ -168,12 +168,7 @@ function AgentForm({
     setSaving(true);
     setError("");
     try {
-      let parsedChannels = {};
-      try {
-        parsedChannels = JSON.parse(channels);
-      } catch {
-        // ignore
-      }
+      const parsedChannels = JSON.parse(channels || "{}");
       const data = {
         name,
         master_prompt: masterPrompt,

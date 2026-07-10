@@ -19,13 +19,27 @@ export default function MasteryPage() {
 
   useEffect(() => {
     apiClient.listAgents().then(setAgents).catch(() => setAgents([]));
-    const saved = localStorage.getItem("lh_learner");
-    if (saved) setLearnerId(saved);
+    // Read learner ID from the shared session
+    try {
+      const session = JSON.parse(localStorage.getItem("lh_session") || "{}");
+      if (session.learnerId) {
+        setLearnerId(session.learnerId);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   useEffect(() => {
     if (learnerId) {
-      localStorage.setItem("lh_learner", learnerId);
+      // Sync to shared session so chat page can use it too
+      try {
+        const session = JSON.parse(localStorage.getItem("lh_session") || "{}");
+        session.learnerId = learnerId;
+        localStorage.setItem("lh_session", JSON.stringify(session));
+      } catch {
+        // ignore
+      }
       setLoading(true);
       Promise.all([
         apiClient.getMastery(learnerId).catch(() => []),

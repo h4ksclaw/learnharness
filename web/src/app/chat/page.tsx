@@ -6,11 +6,11 @@ import {
   Send,
   Hash,
   Plus,
-  ChevronRight,
   CornerDownRight,
   AlertCircle,
   TrendingUp,
   TrendingDown,
+  Loader2,
 } from "lucide-react";
 
 interface Thread {
@@ -32,20 +32,32 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [showNewThread, setShowNewThread] = useState(false);
   const [newThreadTitle, setNewThreadTitle] = useState("");
+  const [newThreadParent, setNewThreadParent] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    apiClient.listAgents().then(setAgents).catch(() => setAgents([]));
-  }, []);
+    apiClient.listAgents().then((data) => {
+      setAgents(data);
+      // FIX: don't call setSelectedAgent during render — do it in the effect
+      if (data.length > 0 && !selectedAgent) {
+        setSelectedAgent(data[0].id);
+      }
+    }).catch(() => setAgents([]));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore session
   useEffect(() => {
     const saved = localStorage.getItem("lh_session");
     if (saved) {
-      const s = JSON.parse(saved);
-      if (s.learnerId) setLearnerId(s.learnerId);
-      if (s.threads) setThreads(s.threads);
-      if (s.activeThread) setActiveThread(s.activeThread);
+      try {
+        const s = JSON.parse(saved);
+        if (s.learnerId) setLearnerId(s.learnerId);
+        if (s.threads) setThreads(s.threads);
+        if (s.activeThread) setActiveThread(s.activeThread);
+        if (s.selectedAgent) setSelectedAgent(s.selectedAgent);
+      } catch {
+        // ignore corrupt session
+      }
     }
   }, []);
 
@@ -53,9 +65,9 @@ export default function ChatPage() {
   useEffect(() => {
     localStorage.setItem(
       "lh_session",
-      JSON.stringify({ learnerId, threads, activeThread }),
+      JSON.stringify({ learnerId, threads, activeThread, selectedAgent }),
     );
-  }, [learnerId, threads, activeThread]);
+  }, [learnerId, threads, activeThread, selectedAgent]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -86,7 +98,19 @@ export default function ChatPage() {
     setActiveThread(id);
     setShowNewThread(false);
     setNewThreadTitle("");
+    setNewThreadParent(null);
     return id;
+  };
+
+  const openNewThreadModal = (parentId: string | null = null) => {
+    setNewThreadParent(parentId);
+    if (parentId) {
+      const parent = threads.find((t) => t.id === parentId);
+      setNewThreadTitle(parent ? `Re: ${parent.title}` : "");
+    } else {
+      setNewThreadTitle("");
+    }
+    setShowNewThread(true);
   };
 
   const sendMessage = async () => {
@@ -152,13 +176,6 @@ export default function ChatPage() {
 
   const currentThread = threads.find((t) => t.id === activeThread);
   const topLevelThreads = threads.filter((t) => t.parentId === null);
-  const subThreads = threads.filter(
-    (t) => t.parentId === activeThread && t.id !== activeThread,
-  );
-
-  if (!selectedAgent && agents.length > 0) {
-    setSelectedAgent(agents[0].id);
-  }
 
   return (
     <div className="flex h-full">
@@ -167,7 +184,7 @@ export default function ChatPage() {
         <div className="flex h-14 items-center justify-between px-4">
           <span className="text-sm font-semibold">Threads</span>
           <button
-            onClick={() => setShowNewThread(true)}
+            onClick={() => openNewThreadModal(null)}
             className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
           >
             <Plus className="h-4 w-4" />
@@ -214,21 +231,20 @@ export default function ChatPage() {
                     <span className="truncate">{t.title}</span>
                   </button>
                   {/* Subthreads */}
-                  {activeThread === t.id &&
-                    subs.map((st) => (
-                      <button
-                        key={st.id}
-                        onClick={() => setActiveThread(st.id)}
-                        className={`flex w-full items-center gap-1.5 rounded-lg py-1.5 pl-6 pr-2 text-left text-xs ${
-                          activeThread === st.id
-                            ? "bg-zinc-800 text-white"
-                            : "text-zinc-500 hover:bg-zinc-900"
-                        }`}
-                      >
-                        <CornerDownRight className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{st.title}</span>
-                      </button>
-                    ))}
+                  {subs.map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => setActiveThread(st.id)}
+                      className={`flex w-full items-center gap-1.5 rounded-lg py-1.5 pl-6 pr-2 text-left text-xs ${
+                        activeThread === st.id
+                          ? "bg-zinc-800 text-white"
+                          : "text-zinc-500 hover:bg-zinc-900"
+                      }`}
+                    >
+                      <CornerDownRight className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{st.title}</span>
+                    </button>
+                  ))}
                 </div>
               );
             })
@@ -252,10 +268,7 @@ export default function ChatPage() {
                 )}
               </div>
               <button
-                onClick={() => {
-                  setNewThreadTitle(`Re: ${currentThread.title}`);
-                  setShowNewThread(true);
-                }}
+                onClick={() => openNewThreadModal(currentThread.id)}
                 className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-white"
               >
                 <CornerDownRight className="h-3 w-3" />
@@ -289,6 +302,17 @@ export default function ChatPage() {
                       }
                     />
                   ))}
+                  {/* Typing indicator */}
+                  {sending && (
+                    <div className="flex justify-start">
+                      <div className="flex items-center gap-2 rounded-2xl bg-zinc-800 px-4 py-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                        <span className="text-sm text-zinc-500">
+                          Agent is thinking...
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
               )}
@@ -320,7 +344,11 @@ export default function ChatPage() {
                   disabled={!input.trim() || sending || !selectedAgent}
                   className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-30"
                 >
-                  <Send className="h-4 w-4" />
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -331,7 +359,7 @@ export default function ChatPage() {
               Create a thread to start chatting
             </p>
             <button
-              onClick={() => setShowNewThread(true)}
+              onClick={() => openNewThreadModal(null)}
               className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
             >
               <Plus className="h-4 w-4" />
@@ -351,14 +379,16 @@ export default function ChatPage() {
             className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-3 text-lg font-semibold">New Thread</h2>
+            <h2 className="mb-3 text-lg font-semibold">
+              {newThreadParent ? "New Subthread" : "New Thread"}
+            </h2>
             <input
               value={newThreadTitle}
               onChange={(e) => setNewThreadTitle(e.target.value)}
               placeholder="e.g. German grammar practice"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newThreadTitle.trim()) {
-                  createThread(newThreadTitle);
+                  createThread(newThreadTitle, newThreadParent);
                 }
               }}
               autoFocus
@@ -372,7 +402,10 @@ export default function ChatPage() {
                 Cancel
               </button>
               <button
-                onClick={() => newThreadTitle.trim() && createThread(newThreadTitle)}
+                onClick={() =>
+                  newThreadTitle.trim() &&
+                  createThread(newThreadTitle, newThreadParent)
+                }
                 disabled={!newThreadTitle.trim()}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
               >
@@ -396,15 +429,18 @@ function MessageBubble({
   deltas: ChatResponse["mastery_deltas"];
 }) {
   const isUser = message.role === "user";
+  const isError = message.content.startsWith("⚠️");
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[70%] ${isUser ? "items-end" : "items-start"}`}>
         <div
           className={`rounded-2xl px-4 py-2.5 text-sm ${
-            isUser
-              ? "bg-emerald-600 text-white"
-              : "bg-zinc-800 text-zinc-100"
+            isError
+              ? "bg-red-900/30 text-red-300"
+              : isUser
+                ? "bg-emerald-600 text-white"
+                : "bg-zinc-800 text-zinc-100"
           }`}
         >
           <p className="whitespace-pre-wrap">{message.content}</p>
@@ -447,15 +483,18 @@ function MessageBubble({
                 className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
                   d.direction === "up"
                     ? "bg-emerald-900/30 text-emerald-400"
-                    : "bg-red-900/30 text-red-400"
+                    : d.direction === "down"
+                      ? "bg-red-900/30 text-red-400"
+                      : "bg-zinc-800 text-zinc-400"
                 }`}
               >
                 {d.direction === "up" ? (
                   <TrendingUp className="h-3 w-3" />
-                ) : (
+                ) : d.direction === "down" ? (
                   <TrendingDown className="h-3 w-3" />
-                )}
-                {d.concept_name}: {Math.round(d.before * 100)}% →{" "}
+                ) : null}
+                {d.concept_name}: {Math.round(d.before * 100)}%
+                {" → "}
                 {Math.round(d.after * 100)}%
               </span>
             ))}
