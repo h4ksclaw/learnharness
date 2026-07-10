@@ -32,11 +32,12 @@ jobs:
 
       - name: Run unit tests (no DB required)
         env:
-          DATABASE_URL: "sqlite:///test.db"
+          DATABASE_URL: "sqlite+aiosqlite:///test.db"
           LLM_BASE_URL: "http://localhost:11434/v1"
           LLM_MODEL: "test"
           LLM_API_KEY: "not-needed"
         run: |
+          pip install aiosqlite
           python -m pytest tests/ -v \
             --ignore=tests/test_tools.py \
             --ignore=tests/test_learning_simulation.py \
