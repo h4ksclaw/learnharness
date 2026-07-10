@@ -8,19 +8,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir uv
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 # Install deps first (cached layer)
 COPY pyproject.toml ./
 RUN uv pip install --system --no-cache .
 
 # Copy app code
-COPY . .
+COPY app/ app/
+COPY alembic/ alembic/
+COPY alembic.ini .
+COPY init_db.py .
 
 # ─── API target ───
 FROM base AS api
 EXPOSE 8000
-CMD ["sh", "-c", "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
 
 # ─── Worker target ───
 FROM base AS worker
-CMD ["sh", "-c", "python init_db.py && python -m app.worker"]
+CMD ["sh", "-c", "alembic upgrade head && python -m app.worker"]
