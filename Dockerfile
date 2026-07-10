@@ -28,3 +28,7 @@ CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --
 # ─── Worker target ───
 FROM base AS worker
 CMD ["sh", "-c", "alembic upgrade head && python -m app.worker"]
+
+# ─── Channels target ───
+FROM base AS channels
+CMD ["sh", "-c", "sleep 10 && python -m app.channels.manager"]

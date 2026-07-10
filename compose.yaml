@@ -73,6 +73,19 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
 
+  channels:
+    build:
+      context: .
+      target: channels
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lh:lh_dev@db:5432/learnharness
+      API_BASE_URL: http://api:8000
+    volumes:
+      - ./:/app
+
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
