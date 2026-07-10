@@ -2,8 +2,13 @@
 
 ![Tests](https://github.com/h4ksclaw/learnharness/actions/workflows/tests.yml/badge.svg)
 ![Docker](https://github.com/h4ksclaw/learnharness/actions/workflows/docker.yml/badge.svg)
+![GHCR](https://github.com/h4ksclaw/learnharness/actions/workflows/docker-publish.yml/badge.svg)
 
 **Open-source, self-hosted adaptive learning platform.** Create AI tutor agents with master prompts, tools, and channels. The agent teaches, tracks knowledge, and reviews — for any subject.
+
+**Prebuilt images:**
+- `docker pull ghcr.io/h4ksclaw/learnharness/api:latest`
+- `docker pull ghcr.io/h4ksclaw/learnharness/worker:latest`
 
 ## Quick Start
 
