@@ -61,6 +61,18 @@ services:
       sh -c "alembic upgrade head &&
              python -m app.worker"
 
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      BACKEND_URL: http://api:8000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped

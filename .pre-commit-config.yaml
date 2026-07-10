@@ -1,4 +1,13 @@
 repos:
+  - repo: local
+    hooks:
+      - id: gen-openapi-client
+        name: Generate OpenAPI client (web)
+        entry: bash -c 'cd web && bash scripts/gen-openapi-client.sh || true'
+        language: system
+        files: ^app/routers/|^app/schemas.py$
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
