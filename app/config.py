@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     enable_web_search: bool = True
     enable_browser: bool = True
 
-    model_config = {"env_file": ".env", "env_prefix": "", "extra": "ignore"}
+    model_config = {"env_prefix": "", "extra": "ignore"}
 
 
 settings = Settings()

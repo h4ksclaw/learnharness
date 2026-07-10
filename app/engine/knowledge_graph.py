@@ -225,7 +225,7 @@ Learner message:
             after, delta = knowledge_tracer.infer_from_chat(before, confidence)
 
             mastery.p_mastery = after
-            mastery.interactions_count += 1
+            mastery.interactions_count = (mastery.interactions_count or 0) + 1
             mastery.last_updated = datetime.now(timezone.utc)
 
             deltas[name] = {"before": before, "after": after, "delta": delta, "concept_id": concept.id}

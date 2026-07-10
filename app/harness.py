@@ -57,7 +57,7 @@ class AgentHarness:
         await kg_engine.record_errors(db, learner.id, concept_map, analysis.corrections)
 
         # ─── Phase 3: Build enriched system prompt ───
-        learner_context = await kg_engine.get_learner_context(db, learner.id)
+        learner_context = await kg_engine.get_learner_context(db, learner.id, agent.id)
         system_prompt = f"{agent.master_prompt}\n\n---\n{learner_context}"
 
         # ─── Phase 4: Call LLM (with tools) ───
