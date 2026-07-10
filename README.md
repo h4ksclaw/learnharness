@@ -45,12 +45,12 @@ curl -X POST localhost:8000/v1/chat/completions -H 'Content-Type: application/js
 
 ```mermaid
 flowchart TD
-    U[User sends message] --> A[① LLM Analyzes<br/>Extracts concepts, corrections, mastery signals]
-    A --> B[② Knowledge Graph Updated<br/>Concepts + prerequisite edges]
-    B --> C[③ BKT Mastery Updated<br/>Per-concept probability shifts]
-    C --> D[④ Learner Context Injected<br/>Weak areas + strong areas → system prompt]
-    D --> E[⑤ LLM Generates Response<br/>Can call tools: web_search, arxiv, wikipedia]
-    E --> F[⑥ Returns Enriched Response<br/>OpenAI-shaped + corrections + mastery deltas + due reviews]
+    U[User sends message] --> A["① LLM Analyzes<br/>Extracts concepts, corrections, mastery signals"]
+    A --> B["② Knowledge Graph Updated<br/>Concepts + prerequisite edges"]
+    B --> C["③ BKT Mastery Updated<br/>Per-concept probability shifts"]
+    C --> D["④ Learner Context Injected<br/>Weak areas + strong areas → system prompt"]
+    D --> E["⑤ LLM Generates Response<br/>Can call tools: web_search, arxiv, wikipedia"]
+    E --> F["⑥ Returns Enriched Response<br/>OpenAI-shaped + corrections + mastery deltas + due reviews"]
 
     style A fill:#4EC9B0,stroke:none,color:#000
     style B fill:#C586C0,stroke:none,color:#000
@@ -143,6 +143,7 @@ graph LR
 | Database | PostgreSQL + pgvector |
 | Spaced Repetition | FSRS (py-fsrs) |
 | Knowledge Tracing | BKT (custom) |
+| Migrations | Alembic |
 | LLM | Any OpenAI-compatible (Ollama default) |
 | Tools | web_search, browse_url, wikipedia, arxiv |
 
@@ -160,6 +161,68 @@ graph LR
 | `/v1/reviews/{id}` | GET | Due FSRS reviews |
 | `/v1/outbound` | GET | Outbound messages (channel adapters poll) |
 
+## Testing
+
+```bash
+# Unit tests (no DB needed)
+DATABASE_URL=sqlite+aiosqlite:///test.db pytest tests/ -v \
+  --ignore=tests/test_tools.py \
+  --ignore=tests/test_tools_system.py \
+  --ignore=tests/test_learning_simulation.py
+
+# With coverage
+pytest tests/ --cov=app --cov-report=term-missing
+
+# E2E integration test (requires running API + Ollama)
+python tests/test_learning_simulation.py
+```
+
+### Test Coverage
+
+| Test File | Tests | What It Covers |
+|---|---|---|
+| `test_fsrs_time.py` | 20 | Time-simulated FSRS: stability growth, lapse recovery, week-of-learning, rating effects |
+| `test_bkt_comprehensive.py` | 19 | BKT convergence, dynamics, soft inference, recovery, boundary conditions |
+| `test_schemas.py` | 19 | Pydantic validation: agent, chat, corrections, mastery, reviews |
+| `test_models.py` | 16 | ORM models: creation, relationships, constraints |
+| `test_knowledge_tracing.py` | 5 | Basic BKT correctness |
+| `test_fsrs.py` | 4 | Basic FSRS mechanics |
+| `test_config.py` | 6 | Settings, defaults, DB engine |
+| `test_tools_system.py` | 11 | Tool registry, OpenAI schemas, execution |
+| `test_tools.py` | 3 | Live tool tests (network required) |
+| `test_learning_simulation.py` | 6 | **E2E**: 8-turn conversation with live LLM |
+
+## Development
+
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Lint and format
+ruff check app/ tests/
+ruff format app/ tests/
+
+# Type check
+mypy app/ --ignore-missing-imports
+
+# Pre-commit hooks
+pre-commit install
+pre-commit run --all-files
+
+# Generate a new migration after model changes
+alembic revision --autogenerate -m "description of change"
+```
+
+### Code Quality Tools
+
+| Tool | Purpose |
+|------|---------|
+| **ruff** | Linting (E, F, I, N, W, UP, B, SIM, C4) + formatting. One import per line. |
+| **mypy** | Type checking with `warn_return_any` |
+| **pre-commit** | Auto-runs ruff, ruff-format, mypy, whitespace checks on commit |
+| **pytest** | 99 unit tests + 6 e2e checks |
+| **GitHub Actions** | CI: lint, test (Python 3.11+3.12), mypy, docker, GHCR publish |
+
 ## Project Status
 
 - [x] FastAPI backend with OpenAI-compatible chat
@@ -170,10 +233,11 @@ graph LR
 - [x] Agent model (master prompt + tools + channels + heartbeat)
 - [x] Background worker with proactive scheduling
 - [x] Outbound message queue for multi-channel delivery
-- [x] 55 unit tests + e2e simulation (all passing)
+- [x] Alembic migrations
+- [x] 99 unit tests + e2e simulation (all passing)
 - [x] Docker Compose (db + api + worker + ollama)
-- [x] GitHub Actions CI (Python 3.11 + 3.12)
-- [ ] Alembic migrations
+- [x] GitHub Actions CI (lint + test + mypy + docker + GHCR)
+- [x] ruff + mypy + pre-commit
 - [ ] Web UI
 - [ ] Channel adapters (IRC, Telegram)
 
