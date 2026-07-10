@@ -12,7 +12,8 @@ Supports:
 
 import json
 import time
-from typing import Any, Type, TypeVar
+from typing import Any
+from typing import TypeVar
 
 import httpx
 import instructor
@@ -124,11 +125,13 @@ class LLMRouter:
                 end_idx = content.rfind("}")
                 if start_idx >= 0 and end_idx > start_idx:
                     return json.loads(content[start_idx : end_idx + 1])
-                raise ValueError(f"Could not parse JSON from LLM response: {content[:200]}")
+                raise ValueError(
+                    f"Could not parse JSON from LLM response: {content[:200]}"
+                ) from None
 
     async def complete_structured(
         self,
-        response_model: Type[T],
+        response_model: type[T],
         messages: list[dict[str, str]],
         model: str | None = None,
         temperature: float = 0.3,

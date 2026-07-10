@@ -1,12 +1,14 @@
 """Pydantic schemas for API request/response."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
+from typing import Literal
 
-from pydantic import BaseModel, Field
-
+from pydantic import BaseModel
+from pydantic import Field
 
 # ─── Agent ───
+
 
 class AgentCreate(BaseModel):
     name: str
@@ -32,6 +34,7 @@ class AgentOut(BaseModel):
 
 
 # ─── Chat (OpenAI-compatible) ───
+
 
 class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
@@ -95,6 +98,7 @@ class ChatResponse(BaseModel):
 
 # ─── Mastery ───
 
+
 class MasteryOut(BaseModel):
     concept_id: str
     concept_name: str
@@ -116,6 +120,7 @@ class CategoryProgress(BaseModel):
 
 # ─── Reviews ───
 
+
 class ReviewItemOut(BaseModel):
     id: int
     concept_id: str
@@ -133,6 +138,7 @@ class ReviewAnswer(BaseModel):
 
 
 # ─── Learner ───
+
 
 class LearnerCreate(BaseModel):
     agent_id: str
@@ -153,12 +159,14 @@ class LearnerOut(BaseModel):
 
 # ─── Categories ───
 
+
 class CategoryCreate(BaseModel):
     name: str
     description: str = ""
 
 
 # ─── Outbound ───
+
 
 class OutboundMessageOut(BaseModel):
     id: int

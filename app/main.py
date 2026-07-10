@@ -14,13 +14,24 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import Base, engine
+from app.db import Base
+from app.db import engine
+
 # Import all models so they register with metadata
-from app.models import (  # noqa: F401
-    Agent, Learner, Concept, ConceptEdge, Mastery, ReviewItem,
-    Interaction, ErrorPattern, OutboundMessage,
-)
-from app.routers import chat, agents, mastery, reviews, heartbeat
+from app.models import Agent  # noqa: F401
+from app.models import Concept  # noqa: F401
+from app.models import ConceptEdge  # noqa: F401
+from app.models import ErrorPattern  # noqa: F401
+from app.models import Interaction  # noqa: F401
+from app.models import Learner  # noqa: F401
+from app.models import Mastery  # noqa: F401
+from app.models import OutboundMessage  # noqa: F401
+from app.models import ReviewItem  # noqa: F401
+from app.routers import agents
+from app.routers import chat
+from app.routers import heartbeat
+from app.routers import mastery
+from app.routers import reviews
 
 
 @asynccontextmanager
@@ -28,6 +39,7 @@ async def lifespan(app: FastAPI):
     # Create tables (dev mode — prod uses alembic)
     async with engine.begin() as conn:
         from sqlalchemy import text
+
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield

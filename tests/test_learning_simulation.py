@@ -12,10 +12,8 @@ Runs against the live API (localhost:8000) with Ollama.
 """
 
 import asyncio
-import json
 import sys
 import time
-from datetime import datetime
 
 import httpx
 
@@ -26,16 +24,19 @@ AGENT_NAME = "Integration Test German Tutor"
 async def create_agent() -> str:
     """Create a fresh agent for this test run."""
     async with httpx.AsyncClient(timeout=30) as c:
-        resp = await c.post(f"{API}/v1/agents", json={
-            "name": AGENT_NAME,
-            "master_prompt": (
-                "You are a patient German tutor for a beginner. "
-                "Respond in simple German. Correct mistakes gently. "
-                "Ask follow-up questions to keep the conversation going."
-            ),
-            "tools": [],
-            "heartbeat_interval": 0,
-        })
+        resp = await c.post(
+            f"{API}/v1/agents",
+            json={
+                "name": AGENT_NAME,
+                "master_prompt": (
+                    "You are a patient German tutor for a beginner. "
+                    "Respond in simple German. Correct mistakes gently. "
+                    "Ask follow-up questions to keep the conversation going."
+                ),
+                "tools": [],
+                "heartbeat_interval": 0,
+            },
+        )
         resp.raise_for_status()
         agent_id = resp.json()["id"]
         print(f"  ✅ Agent created: {agent_id[:8]}")
@@ -45,11 +46,14 @@ async def create_agent() -> str:
 async def send_message(agent_id: str, learner_id: str, text: str) -> dict:
     """Send a chat message and return the full response."""
     async with httpx.AsyncClient(timeout=120) as c:
-        resp = await c.post(f"{API}/v1/chat/completions", json={
-            "agent_id": agent_id,
-            "learner_id": learner_id,
-            "messages": [{"role": "user", "content": text}],
-        })
+        resp = await c.post(
+            f"{API}/v1/chat/completions",
+            json={
+                "agent_id": agent_id,
+                "learner_id": learner_id,
+                "messages": [{"role": "user", "content": text}],
+            },
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -83,9 +87,9 @@ async def get_graph(learner_id: str) -> dict:
 
 
 def print_header(title: str):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 def check(name: str, condition: bool, detail: str = ""):
@@ -127,7 +131,7 @@ async def run_simulation():
     all_responses = []
 
     for i, msg in enumerate(conversation, 1):
-        print(f"\n  Turn {i}/{len(conversation)}: \"{msg[:50]}...\"")
+        print(f'\n  Turn {i}/{len(conversation)}: "{msg[:50]}..."')
         try:
             resp = await send_message(agent_id, learner_id, msg)
             all_responses.append(resp)
@@ -137,16 +141,22 @@ async def run_simulation():
             corrections = resp.get("corrections", [])
             content = resp["choices"][0]["message"]["content"][:80]
 
-            print(f"    Response: \"{content}...\"")
+            print(f'    Response: "{content}..."')
             if concepts:
                 print(f"    Concepts: {concepts}")
             if deltas:
                 for d in deltas:
-                    arrow = "↑" if d["direction"] == "up" else "↓" if d["direction"] == "down" else "="
-                    print(f"    Mastery: {d['concept_name']} {d['before']:.2f}→{d['after']:.2f} {arrow}")
+                    arrow = (
+                        "↑" if d["direction"] == "up" else "↓" if d["direction"] == "down" else "="
+                    )
+                    print(
+                        f"    Mastery: {d['concept_name']} {d['before']:.2f}→{d['after']:.2f} {arrow}"
+                    )
             if corrections:
                 for c in corrections:
-                    print(f"    Correction: '{c['original']}' → '{c['corrected']}' ({c.get('rule', '')})")
+                    print(
+                        f"    Correction: '{c['original']}' → '{c['corrected']}' ({c.get('rule', '')})"
+                    )
 
         except Exception as e:
             print(f"    ⚠️ Error on turn {i}: {e}")
@@ -159,33 +169,40 @@ async def run_simulation():
 
     graph = await get_graph(learner_id)
     nodes = graph.get("nodes", [])
-    edges = graph.get("edges", [])
 
     concepts_with_mastery = [n for n in nodes if n.get("mastery") is not None]
 
     check("Concepts were extracted", len(nodes) >= 3, f"{len(nodes)} concepts in graph")
-    check("Concepts have mastery tracking", len(concepts_with_mastery) >= 2,
-          f"{len(concepts_with_mastery)} concepts with mastery data")
+    check(
+        "Concepts have mastery tracking",
+        len(concepts_with_mastery) >= 2,
+        f"{len(concepts_with_mastery)} concepts with mastery data",
+    )
 
     if nodes:
         print("\n    Knowledge graph contents:")
         for n in nodes[:10]:
             mastery_str = f"{n['mastery']:.0%}" if n.get("mastery") is not None else "—"
-            print(f"      [{n.get('category', '?')}] {n['name']}: mastery={mastery_str} "
-                  f"({n.get('interactions', 0)} interactions)")
+            print(
+                f"      [{n.get('category', '?')}] {n['name']}: mastery={mastery_str} "
+                f"({n.get('interactions', 0)} interactions)"
+            )
 
     # ─── Verify: Mastery evolved ───
     print_header("CHECK 2: Mastery Tracking Evolved")
 
     mastery_records = await get_mastery(learner_id)
-    check("Mastery records exist", len(mastery_records) >= 2,
-          f"{len(mastery_records)} concepts tracked")
+    check(
+        "Mastery records exist",
+        len(mastery_records) >= 2,
+        f"{len(mastery_records)} concepts tracked",
+    )
 
     if mastery_records:
         mastered = [m for m in mastery_records if m["p_mastery"] >= 0.7]
         weak = [m for m in mastery_records if m["p_mastery"] < 0.5]
 
-        print(f"\n    Mastery distribution:")
+        print("\n    Mastery distribution:")
         print(f"      Mastered (≥70%): {len(mastered)} concepts")
         print(f"      Learning (<50%): {len(weak)} concepts")
         print()
@@ -194,20 +211,31 @@ async def run_simulation():
             bar = "█" * int(m["p_mastery"] * 20) + "░" * (20 - int(m["p_mastery"] * 20))
             print(f"      {bar} {m['p_mastery']:.0%} — {m['concept_name']} ({m['category']})")
 
-        check("Some concepts show progress (≥60%)", len(mastered) >= 1,
-              f"{len(mastered)} concepts at ≥70%")
-        check("Interactions were counted", any(m["interactions_count"] >= 2 for m in mastery_records),
-              "At least one concept has 2+ interactions")
+        check(
+            "Some concepts show progress (≥60%)",
+            len(mastered) >= 1,
+            f"{len(mastered)} concepts at ≥70%",
+        )
+        check(
+            "Interactions were counted",
+            any(m["interactions_count"] >= 2 for m in mastery_records),
+            "At least one concept has 2+ interactions",
+        )
 
     # ─── Verify: Categories tracked ───
     print_header("CHECK 3: Category-Level Progress")
 
     categories = await get_categories(learner_id)
-    check("Multiple categories detected", len(categories) >= 1,
-          f"{len(categories)} categories: {[c['category'] for c in categories]}")
+    check(
+        "Multiple categories detected",
+        len(categories) >= 1,
+        f"{len(categories)} categories: {[c['category'] for c in categories]}",
+    )
 
     for cat in categories[:5]:
-        print(f"\n    📂 {cat['category']}: {cat['concept_count']} concepts, avg mastery {cat['avg_mastery']:.0%}")
+        print(
+            f"\n    📂 {cat['category']}: {cat['concept_count']} concepts, avg mastery {cat['avg_mastery']:.0%}"
+        )
         for c in cat.get("concepts", [])[:3]:
             print(f"       — {c['name']}: {c['mastery']:.0%}")
 
@@ -216,8 +244,7 @@ async def run_simulation():
 
     errors = await get_errors(learner_id)
     if errors:
-        check("Error patterns were recorded", len(errors) >= 1,
-              f"{len(errors)} error patterns")
+        check("Error patterns were recorded", len(errors) >= 1, f"{len(errors)} error patterns")
         for e in errors[:5]:
             print(f"\n    ⚠️ {e['concept_name']}: {e['error_type']} (x{e['count']})")
             if e.get("examples"):
@@ -242,13 +269,22 @@ async def run_simulation():
             progression[name].append((i, delta["after"]))
 
     if progression:
-        check("Multiple concepts tracked across turns", len(progression) >= 2,
-              f"{len(progression)} concepts tracked over time")
+        check(
+            "Multiple concepts tracked across turns",
+            len(progression) >= 2,
+            f"{len(progression)} concepts tracked over time",
+        )
 
         print()
         for name, points in list(progression.items())[:5]:
             values = " → ".join(f"T{t}:{v:.2f}" for t, v in points)
-            trend = "📈" if points[-1][1] > points[0][1] else "📉" if points[-1][1] < points[0][1] else "➡️"
+            trend = (
+                "📈"
+                if points[-1][1] > points[0][1]
+                else "📉"
+                if points[-1][1] < points[0][1]
+                else "➡️"
+            )
             print(f"    {trend} {name}: {values}")
     else:
         check("Mastery progression data", False, "No deltas collected")
@@ -264,7 +300,10 @@ async def run_simulation():
         ("Concepts extracted", len(nodes) >= 3),
         ("Concepts with mastery", len(concepts_with_mastery) >= 2),
         ("Mastery records exist", len(mastery_records) >= 2),
-        ("Some concepts mastered (≥70%)", len([m for m in mastery_records if m["p_mastery"] >= 0.7]) >= 1),
+        (
+            "Some concepts mastered (≥70%)",
+            len([m for m in mastery_records if m["p_mastery"] >= 0.7]) >= 1,
+        ),
         ("Multiple categories", len(categories) >= 1),
         ("Mastery progression tracked", len(progression) >= 2),
     ]

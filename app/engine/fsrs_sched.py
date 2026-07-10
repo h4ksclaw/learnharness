@@ -4,9 +4,13 @@ Wraps the py-fsrs library. Each concept the learner struggles with becomes
 a review item that FSRS schedules for optimal recall.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 
-from fsrs import Scheduler, Card, Rating, State
+from fsrs import Card
+from fsrs import Rating
+from fsrs import Scheduler
+from fsrs import State
 
 from app.config import settings
 from app.models import ReviewItem
@@ -21,9 +25,7 @@ class FSRSScheduler:
 
     def schedule_new(self, concept_id: str, content: dict, learner_id: str) -> ReviewItem:
         """Create a new review item for a concept."""
-        now = datetime.now(timezone.utc)
-        # Start with a fresh card to get initial scheduling
-        card = Card()
+        now = datetime.now(UTC)
         return ReviewItem(
             learner_id=learner_id,
             concept_id=concept_id,
@@ -50,7 +52,7 @@ class FSRSScheduler:
             The updated item (caller must commit to DB)
         """
         fsrs_rating = Rating(rating)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Reconstruct FSRS Card from our stored state
         # Map our DB state to FSRS State enum
@@ -83,7 +85,7 @@ class FSRSScheduler:
 
     def is_due(self, item: ReviewItem, now: datetime | None = None) -> bool:
         """Check if a review item is due."""
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         return item.next_review <= now
 
 

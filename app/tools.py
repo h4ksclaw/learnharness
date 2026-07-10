@@ -6,8 +6,6 @@ to search the web, browse URLs, read papers, etc.
 Tools are exposed to the LLM as function calls. The LLM decides when to use them.
 """
 
-import asyncio
-import json
 import re
 from typing import Any
 
@@ -34,11 +32,13 @@ async def web_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
                 title = title_el.get_text(strip=True)
                 href = title_el.get("href", "")
                 snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-                results.append({
-                    "title": title,
-                    "url": href,
-                    "snippet": snippet,
-                })
+                results.append(
+                    {
+                        "title": title,
+                        "url": href,
+                        "snippet": snippet,
+                    }
+                )
     except Exception as e:
         results.append({"error": f"Search failed: {e}"})
 
@@ -95,14 +95,17 @@ async def search_wikipedia(query: str, sentences: int = 5) -> str:
 
             # Get the summary
             summary_url = (
-                f"https://en.wikipedia.org/api/rest_v1/page/summary/"
-                f"{title.replace(' ', '_')}"
+                f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}"
             )
             resp = await client.get(summary_url)
             summary_data = resp.json()
 
             extract = summary_data.get("extract", "")
-            return f"**{title}**\n\n{extract}" if extract else f"Found '{title}' but no summary available."
+            return (
+                f"**{title}**\n\n{extract}"
+                if extract
+                else f"Found '{title}' but no summary available."
+            )
     except Exception as e:
         return f"Wikipedia search failed: {e}"
 
@@ -126,13 +129,17 @@ async def search_arxiv(query: str, max_results: int = 3) -> list[dict[str, str]]
             title = entry.find("title").get_text(strip=True) if entry.find("title") else ""
             summary = entry.find("summary").get_text(strip=True) if entry.find("summary") else ""
             link = entry.find("id").get_text(strip=True) if entry.find("id") else ""
-            published = entry.find("published").get_text(strip=True) if entry.find("published") else ""
-            results.append({
-                "title": title,
-                "summary": summary[:500],
-                "url": link,
-                "published": published[:10],
-            })
+            published = (
+                entry.find("published").get_text(strip=True) if entry.find("published") else ""
+            )
+            results.append(
+                {
+                    "title": title,
+                    "summary": summary[:500],
+                    "url": link,
+                    "published": published[:10],
+                }
+            )
     except Exception as e:
         results.append({"error": f"arXiv search failed: {e}"})
 
@@ -161,7 +168,11 @@ TOOL_DEFINITIONS = {
             "type": "object",
             "properties": {
                 "url": {"type": "string", "description": "URL to fetch"},
-                "max_chars": {"type": "integer", "description": "Max chars to return", "default": 5000},
+                "max_chars": {
+                    "type": "integer",
+                    "description": "Max chars to return",
+                    "default": 5000,
+                },
             },
             "required": ["url"],
         },
@@ -199,14 +210,16 @@ def get_openai_tool_schemas(enabled_tools: list[str]) -> list[dict]:
     for tool_name in enabled_tools:
         if tool_name in TOOL_DEFINITIONS:
             td = TOOL_DEFINITIONS[tool_name]
-            schemas.append({
-                "type": "function",
-                "function": {
-                    "name": tool_name,
-                    "description": td["description"],
-                    "parameters": td["parameters"],
-                },
-            })
+            schemas.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "description": td["description"],
+                        "parameters": td["parameters"],
+                    },
+                }
+            )
     return schemas
 
 

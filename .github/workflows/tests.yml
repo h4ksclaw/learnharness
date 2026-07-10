@@ -7,45 +7,52 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - name: Ruff check
+        run: ruff check app/ tests/
+      - name: Ruff format check
+        run: ruff format --check app/ tests/
+
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -e ".[dev]"
-
-      - name: Lint with ruff
-        run: |
-          ruff check app/ tests/ || true
-
-      - name: Run unit tests (no DB required)
+          pip install aiosqlite
+      - name: Run unit tests
         env:
           DATABASE_URL: "sqlite+aiosqlite:///test.db"
           LLM_BASE_URL: "http://localhost:11434/v1"
           LLM_MODEL: "test"
           LLM_API_KEY: "not-needed"
         run: |
-          pip install aiosqlite
           python -m pytest tests/ -v \
             --ignore=tests/test_tools.py \
             --ignore=tests/test_learning_simulation.py \
             --tb=short
 
-      - name: Test summary
-        if: always()
-        run: |
-          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: Mypy type check
+        run: mypy app/ --ignore-missing-imports || true

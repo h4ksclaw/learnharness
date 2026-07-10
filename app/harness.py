@@ -11,27 +11,34 @@ Pipeline:
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.engine.knowledge_graph import kg_engine
 from app.engine.llm import llm_router
-from app.models import Agent, Learner, Interaction, Concept, Mastery, ReviewItem, OutboundMessage
-from app.schemas import (
-    ChatRequest, ChatResponse, ChatResponseChoice, ChatMessage,
-    Correction, MasteryDelta, ChatResponseUsage,
-)
-from app.tools import get_openai_tool_schemas, execute_tool
+from app.models import Agent
+from app.models import Concept
+from app.models import Interaction
+from app.models import Learner
+from app.models import ReviewItem
+from app.schemas import ChatMessage
+from app.schemas import ChatRequest
+from app.schemas import ChatResponse
+from app.schemas import ChatResponseChoice
+from app.schemas import ChatResponseUsage
+from app.schemas import Correction
+from app.schemas import MasteryDelta
+from app.tools import execute_tool
+from app.tools import get_openai_tool_schemas
 
 
 class AgentHarness:
     """Main agent execution harness."""
 
-    async def process_message(
-        self, db: AsyncSession, request: ChatRequest
-    ) -> ChatResponse:
+    async def process_message(self, db: AsyncSession, request: ChatRequest) -> ChatResponse:
         agent = await self._get_agent(db, request.agent_id)
         learner = await self._get_or_create_learner(db, request.learner_id, agent.id)
 
@@ -68,9 +75,7 @@ class AgentHarness:
         tool_calls_made = []
         if agent.tools:
             tool_schemas = get_openai_tool_schemas(agent.tools)
-            llm_result = await self._llm_with_tools(
-                messages_for_llm, tool_schemas, agent, request
-            )
+            llm_result = await self._llm_with_tools(messages_for_llm, tool_schemas, agent, request)
             tool_calls_made = llm_result.get("tool_calls_made", [])
         else:
             llm_result = await llm_router.complete(
@@ -102,8 +107,7 @@ class AgentHarness:
                 concept_name=name,
                 before=d["before"],
                 after=d["after"],
-                direction="up" if d["delta"] > 0.01
-                else ("down" if d["delta"] < -0.01 else "same"),
+                direction="up" if d["delta"] > 0.01 else ("down" if d["delta"] < -0.01 else "same"),
             )
             for name, d in mastery_deltas.items()
         ]
@@ -120,22 +124,24 @@ class AgentHarness:
             agent_response=content,
             concept_ids=[c.id for c in concept_map.values()],
             corrections=[c.model_dump() for c in corrections],
-            mastery_deltas={name: d for name, d in mastery_deltas.items()},
+            mastery_deltas=dict(mastery_deltas),
             tool_calls=tool_calls_made,
         )
         db.add(interaction)
-        learner.last_active = datetime.now(timezone.utc)
+        learner.last_active = datetime.now(UTC)
         await db.commit()
 
         return ChatResponse(
             id=f"chatcmpl-{uuid.uuid4().hex[:24]}",
             created=int(time.time()),
             model=llm_result.get("model", "unknown"),
-            choices=[ChatResponseChoice(
-                index=0,
-                message=ChatMessage(role="assistant", content=content),
-                finish_reason="stop",
-            )],
+            choices=[
+                ChatResponseChoice(
+                    index=0,
+                    message=ChatMessage(role="assistant", content=content),
+                    finish_reason="stop",
+                )
+            ],
             usage=ChatResponseUsage(**llm_result.get("usage", {})),
             corrections=corrections,
             mastery_deltas=m_deltas,
@@ -169,13 +175,12 @@ class AgentHarness:
             payload["max_tokens"] = request.max_tokens
 
         tool_calls_made = []
-        start = time.monotonic()
-
         async with httpx.AsyncClient(timeout=120) as client:
             for _ in range(5):  # max 5 tool-call rounds
                 resp = await client.post(
                     f"{llm_router.base_url}/chat/completions",
-                    json=payload, headers=headers,
+                    json=payload,
+                    headers=headers,
                 )
                 resp.raise_for_status()
                 data = resp.json()
@@ -199,23 +204,28 @@ class AgentHarness:
                     fn_args = json.loads(tc["function"]["arguments"])
 
                     result = await execute_tool(fn_name, fn_args)
-                    tool_calls_made.append({
-                        "tool": fn_name,
-                        "args": fn_args,
-                        "result": str(result)[:1000],
-                    })
+                    tool_calls_made.append(
+                        {
+                            "tool": fn_name,
+                            "args": fn_args,
+                            "result": str(result)[:1000],
+                        }
+                    )
 
-                    payload["messages"].append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": json.dumps(result, default=str)[:5000],
-                    })
+                    payload["messages"].append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": json.dumps(result, default=str)[:5000],
+                        }
+                    )
 
             # Max rounds reached — get final response without tools
             payload.pop("tools", None)
             resp = await client.post(
                 f"{llm_router.base_url}/chat/completions",
-                json=payload, headers=headers,
+                json=payload,
+                headers=headers,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -257,11 +267,15 @@ class AgentHarness:
         return list(result.scalars().all())
 
     async def _get_due_reviews(self, db: AsyncSession, learner_id: str) -> list[dict]:
-        now = datetime.now(timezone.utc)
-        stmt = select(ReviewItem).where(
-            ReviewItem.learner_id == learner_id,
-            ReviewItem.next_review <= now,
-        ).limit(5)
+        now = datetime.now(UTC)
+        stmt = (
+            select(ReviewItem)
+            .where(
+                ReviewItem.learner_id == learner_id,
+                ReviewItem.next_review <= now,
+            )
+            .limit(5)
+        )
         items = (await db.execute(stmt)).scalars().all()
         return [
             {"id": i.id, "concept_id": i.concept_id, "next_review": i.next_review.isoformat()}
@@ -273,10 +287,12 @@ class AgentHarness:
             id=f"chatcmpl-err-{uuid.uuid4().hex[:8]}",
             created=int(time.time()),
             model="error",
-            choices=[ChatResponseChoice(
-                message=ChatMessage(role="assistant", content=f"Error: {message}"),
-                finish_reason="error",
-            )],
+            choices=[
+                ChatResponseChoice(
+                    message=ChatMessage(role="assistant", content=f"Error: {message}"),
+                    finish_reason="error",
+                )
+            ],
         )
 
 

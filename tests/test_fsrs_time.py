@@ -12,7 +12,9 @@ Tests:
 8. All four rating levels produce different intervals
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
 
 import pytest
 
@@ -28,6 +30,7 @@ def scheduler():
 @pytest.fixture
 def make_item():
     """Factory to create review items with given next_review time."""
+
     def _make(next_review=None, concept_id="c1", **kwargs):
         item = ReviewItem(
             id=1,
@@ -40,11 +43,12 @@ def make_item():
             lapses=kwargs.get("lapses", 0),
             state=kwargs.get("state", 1),
             last_review=kwargs.get("last_review"),
-            next_review=next_review or datetime.now(timezone.utc),
+            next_review=next_review or datetime.now(UTC),
             elapsed_days=0.0,
             scheduled_days=0.0,
         )
         return item
+
     return _make
 
 
@@ -52,12 +56,12 @@ class TestBasicScheduling:
     """Basic scheduling mechanics."""
 
     def test_new_item_is_due_now(self, scheduler, make_item):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         item = make_item(next_review=now)
         assert scheduler.is_due(item, now)
 
     def test_new_item_not_due_in_future(self, scheduler, make_item):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         item = make_item(next_review=now + timedelta(days=3))
         assert not scheduler.is_due(item, now)
 
@@ -79,7 +83,7 @@ class TestRatingEffects:
     """All four FSRS ratings produce different scheduling outcomes."""
 
     def test_easy_gives_farther_interval_than_good(self, scheduler, make_item):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         item_good = make_item(last_review=now - timedelta(days=1))
         item_good = scheduler.review(item_good, rating=3)  # good
@@ -90,7 +94,7 @@ class TestRatingEffects:
         assert item_easy.next_review >= item_good.next_review
 
     def test_again_gives_sooner_interval_than_hard(self, scheduler, make_item):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         item_hard = make_item(last_review=now - timedelta(days=1))
         item_hard = scheduler.review(item_hard, rating=2)  # hard
@@ -127,7 +131,7 @@ class TestStabilityProgression:
 
         for _ in range(8):
             item = scheduler.review(item, rating=3)
-            item.last_review = datetime.now(timezone.utc)
+            item.last_review = datetime.now(UTC)
             stabilities.append(item.stability)
 
         # After graduating from learning to review, stability should have grown
@@ -140,9 +144,9 @@ class TestStabilityProgression:
 
         for _ in range(3):
             item_good = scheduler.review(item_good, rating=3)
-            item_good.last_review = datetime.now(timezone.utc)
+            item_good.last_review = datetime.now(UTC)
             item_easy = scheduler.review(item_easy, rating=4)
-            item_easy.last_review = datetime.now(timezone.utc)
+            item_easy.last_review = datetime.now(UTC)
 
         # Easy should result in higher stability
         assert item_easy.stability >= item_good.stability
@@ -153,7 +157,7 @@ class TestStabilityProgression:
         # Build up stability
         for _ in range(3):
             item = scheduler.review(item, rating=3)
-            item.last_review = datetime.now(timezone.utc)
+            item.last_review = datetime.now(UTC)
         high_stability = item.stability
 
         # Lapse
@@ -166,7 +170,7 @@ class TestTimeSimulation:
 
     def test_items_become_due_after_time(self, scheduler, make_item):
         """An item scheduled for +1 day should be due after 1 day."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         item = make_item(next_review=now + timedelta(days=1))
 
         # Not due now
@@ -177,7 +181,7 @@ class TestTimeSimulation:
         assert scheduler.is_due(item, tomorrow)
 
     def test_items_not_due_before_time(self, scheduler, make_item):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         item = make_item(next_review=now + timedelta(days=7))
 
         for days in range(7):
@@ -189,19 +193,19 @@ class TestTimeSimulation:
         item = make_item()
 
         # Simulate 10 consecutive good reviews with time passing
-        for i in range(10):
+        for _ in range(10):
             now = item.next_review
             # Advance time to when the item is due
             item = scheduler.review(item, rating=3)
             item.last_review = now
 
         # After 10 good reviews, next review should be at least several days out
-        time_until_next = item.next_review - datetime.now(timezone.utc)
+        time_until_next = item.next_review - datetime.now(UTC)
         assert time_until_next.total_seconds() > 0
 
     def test_simulate_week_of_learning(self, scheduler, make_item):
         """Simulate a week of learning: review each day, track what's due."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Create items that are due NOW
         items = [make_item(concept_id=f"c{i}", next_review=now) for i in range(5)]
 
@@ -230,7 +234,7 @@ class TestTimeSimulation:
         item = make_item()
         intervals = []
 
-        for i in range(6):
+        for _ in range(6):
             review_time = item.next_review
             item = scheduler.review(item, rating=3)
             item.last_review = review_time
@@ -254,12 +258,12 @@ class TestMultipleConcepts:
         # A: always good
         for _ in range(3):
             concept_a = scheduler.review(concept_a, rating=3)
-            concept_a.last_review = datetime.now(timezone.utc)
+            concept_a.last_review = datetime.now(UTC)
 
         # B: always again (fails)
         for _ in range(3):
             concept_b = scheduler.review(concept_b, rating=1)
-            concept_b.last_review = datetime.now(timezone.utc)
+            concept_b.last_review = datetime.now(UTC)
 
         # A should have higher stability
         assert concept_a.stability > concept_b.stability
@@ -272,12 +276,12 @@ class TestMultipleConcepts:
         # Mastered: 5 good reviews
         for _ in range(5):
             mastered = scheduler.review(mastered, rating=4)
-            mastered.last_review = datetime.now(timezone.utc)
+            mastered.last_review = datetime.now(UTC)
 
         # Struggling: mix of again and hard
         for _ in range(5):
             struggling = scheduler.review(struggling, rating=1)
-            struggling.last_review = datetime.now(timezone.utc)
+            struggling.last_review = datetime.now(UTC)
 
         assert mastered.stability > struggling.stability
         assert struggling.lapses > mastered.lapses
@@ -291,9 +295,8 @@ class TestLapseRecovery:
 
         # Graduate to review state
         item = scheduler.review(item, rating=3)
-        item.last_review = datetime.now(timezone.utc)
+        item.last_review = datetime.now(UTC)
         item = scheduler.review(item, rating=3)
-        review_state = item.state
 
         # Lapse
         item = scheduler.review(item, rating=1)
@@ -308,11 +311,10 @@ class TestLapseRecovery:
         # Build up
         for _ in range(3):
             item = scheduler.review(item, rating=3)
-            item.last_review = datetime.now(timezone.utc)
+            item.last_review = datetime.now(UTC)
 
         # Lapse
         item = scheduler.review(item, rating=1)
-        stability_after_lapse = item.stability
 
         # Recover
         item = scheduler.review(item, rating=3)

@@ -79,14 +79,14 @@ class TestBKTDynamics:
         """80% correct should trend upward overall."""
         p = 0.5
         for i in range(20):
-            correct = (i % 5 != 0)  # 4 out of 5 correct
+            correct = i % 5 != 0  # 4 out of 5 correct
             p, _ = kt.update(p, observed_correct=correct)
         assert p > 0.7, f"Expected >0.7 with 80% correct, got {p}"
 
     def test_mostly_incorrect_trends_down(self, kt):
         p = 0.5
         for i in range(20):
-            correct = (i % 5 == 0)  # 1 out of 5 correct
+            correct = i % 5 == 0  # 1 out of 5 correct
             p, _ = kt.update(p, observed_correct=correct)
         assert p < 0.3
 

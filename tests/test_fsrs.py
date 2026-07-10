@@ -1,6 +1,8 @@
 """Test FSRS scheduling."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
 
 from app.engine.fsrs_sched import FSRSScheduler
 from app.models import ReviewItem
@@ -32,9 +34,12 @@ def test_again_increases_lapses():
 
 def test_is_due():
     sched = FSRSScheduler()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     item = ReviewItem(
-        id=1, learner_id="l1", concept_id="c1", content={},
+        id=1,
+        learner_id="l1",
+        concept_id="c1",
+        content={},
         next_review=now - timedelta(hours=1),
     )
     assert sched.is_due(item, now)

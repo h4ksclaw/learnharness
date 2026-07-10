@@ -5,22 +5,27 @@ The key insight: the LLM reads the conversation and outputs structured data
 This makes the system domain-agnostic — works for languages, coding, math, anything.
 """
 
-import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC
+from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.engine.llm import llm_router
-from app.models import Concept, ConceptEdge, ErrorPattern, Mastery, Learner
-
+from app.models import Concept
+from app.models import ConceptEdge
+from app.models import ErrorPattern
+from app.models import Mastery
 
 # ─── Structured outputs for LLM extraction ───
 
+
 class ConceptExtraction(BaseModel):
     """A concept extracted from conversation."""
+
     name: str
     category: str = "general"
     description: str = ""
@@ -29,6 +34,7 @@ class ConceptExtraction(BaseModel):
 
 class EdgeExtraction(BaseModel):
     """A relationship between concepts."""
+
     source: str  # concept name
     target: str  # concept name
     edge_type: str = "related"  # prerequisite, related, part_of, contrasts_with
@@ -36,6 +42,7 @@ class EdgeExtraction(BaseModel):
 
 class CorrectionExtraction(BaseModel):
     """A correction or error the learner made."""
+
     original: str
     corrected: str
     rule: str = ""
@@ -45,6 +52,7 @@ class CorrectionExtraction(BaseModel):
 
 class AnalysisResult(BaseModel):
     """Full analysis of a user message."""
+
     concepts: list[ConceptExtraction] = Field(default_factory=list)
     edges: list[EdgeExtraction] = Field(default_factory=list)
     corrections: list[CorrectionExtraction] = Field(default_factory=list)
@@ -56,19 +64,19 @@ class AnalysisResult(BaseModel):
 
 # ─── Prompts ───
 
-ANALYSIS_SYSTEM_PROMPT = """You are a learning analytics engine. You analyze a learner's message and extract structured learning data.
+ANALYSIS_SYSTEM_PROMPT = """You are a learning analytics engine. You analyze a learner's message and extract structured learning data.  # noqa: E501
 
 You return JSON with this structure:
 {
   "concepts": [{"name": "...", "category": "...", "description": "...", "difficulty": 0.0-1.0}],
-  "edges": [{"source": "concept_name", "target": "concept_name", "edge_type": "prerequisite|related|part_of|contrasts_with"}],
-  "corrections": [{"original": "...", "corrected": "...", "rule": "...", "concept_name": "...", "severity": "error|warning|suggestion"}],
+  "edges": [{"source": "concept_name", "target": "concept_name", "edge_type": "prerequisite|related|part_of|contrasts_with"}],  # noqa: E501
+  "corrections": [{"original": "...", "corrected": "...", "rule": "...", "concept_name": "...", "severity": "error|warning|suggestion"}],  # noqa: E501
   "mastery_signals": {"concept_name": 0.0-1.0},
   "needs_review": ["concept_name"]
 }
 
 Rules:
-- Extract ALL concepts present in the learner's message (grammar rules, vocabulary, syntax patterns, domain facts)
+- Extract ALL concepts present in the learner's message (grammar rules, vocabulary, syntax patterns, domain facts)  # noqa: E501
 - Identify prerequisite relationships (e.g. "present tense" is prerequisite for "past tense")
 - Flag "contrasts_with" for commonly confused concepts (e.g. ser/estar, por/para)
 - corrections: only if the learner made actual errors. Be precise about the rule violated.
@@ -77,7 +85,7 @@ Rules:
 - difficulty: 0=trivial, 1=very advanced
 
 Be conservative with corrections — only flag genuine errors, not style preferences.
-If the domain is a programming language, concepts are syntax patterns, functions, data structures, etc.
+If the domain is a programming language, concepts are syntax patterns, functions, data structures, etc.  # noqa: E501
 If it's natural language, concepts are grammar, vocabulary, pronunciation, pragmatics.
 """
 
@@ -177,11 +185,13 @@ Learner message:
             if existing:
                 continue
 
-            db.add(ConceptEdge(
-                source_id=source.id,
-                target_id=target.id,
-                edge_type=edge.edge_type,
-            ))
+            db.add(
+                ConceptEdge(
+                    source_id=source.id,
+                    target_id=target.id,
+                    edge_type=edge.edge_type,
+                )
+            )
             added += 1
 
         await db.flush()
@@ -226,9 +236,14 @@ Learner message:
 
             mastery.p_mastery = after
             mastery.interactions_count = (mastery.interactions_count or 0) + 1
-            mastery.last_updated = datetime.now(timezone.utc)
+            mastery.last_updated = datetime.now(UTC)
 
-            deltas[name] = {"before": before, "after": after, "delta": delta, "concept_id": concept.id}
+            deltas[name] = {
+                "before": before,
+                "after": after,
+                "delta": delta,
+                "concept_id": concept.id,
+            }
 
         await db.flush()
         return deltas
@@ -259,7 +274,7 @@ Learner message:
             if pattern:
                 pattern.count += 1
                 pattern.examples.append({"original": corr.original, "corrected": corr.corrected})
-                pattern.last_seen = datetime.now(timezone.utc)
+                pattern.last_seen = datetime.now(UTC)
             else:
                 pattern = ErrorPattern(
                     learner_id=learner_id,
@@ -284,9 +299,12 @@ Learner message:
         This gets injected into the system prompt so the tutor knows where the learner is.
         """
         # Get mastery records
-        stmt = select(Mastery, Concept).join(Concept, Mastery.concept_id == Concept.id).where(
-            Mastery.learner_id == learner_id
-        ).order_by(Mastery.p_mastery)
+        stmt = (
+            select(Mastery, Concept)
+            .join(Concept, Mastery.concept_id == Concept.id)
+            .where(Mastery.learner_id == learner_id)
+            .order_by(Mastery.p_mastery)
+        )
         rows = (await db.execute(stmt)).all()
 
         if not rows:
@@ -306,7 +324,9 @@ Learner message:
             lines.append("WEAK AREAS (focus here):")
             lines.extend(weak[:10])
         if strong:
-            lines.append(f"\nMASTERED ({len(strong)} concepts): {', '.join(s.split(':')[0] for s in strong[:5])}")
+            lines.append(
+                f"\nMASTERED ({len(strong)} concepts): {', '.join(s.split(':')[0] for s in strong[:5])}"
+            )
 
         return "\n".join(lines)
 

@@ -40,13 +40,15 @@ class KnowledgeTracer:
         # Bayesian update
         if observed_correct:
             # P(known | correct)
-            p_known_given_obs = (1 - self.slip) * p_mastery / (
-                (1 - self.slip) * p_mastery + self.guess * (1 - p_mastery)
+            p_known_given_obs = (
+                (1 - self.slip)
+                * p_mastery
+                / ((1 - self.slip) * p_mastery + self.guess * (1 - p_mastery))
             )
         else:
             # P(known | incorrect)
-            p_known_given_obs = self.slip * p_mastery / (
-                self.slip * p_mastery + (1 - self.guess) * (1 - p_mastery)
+            p_known_given_obs = (
+                self.slip * p_mastery / (self.slip * p_mastery + (1 - self.guess) * (1 - p_mastery))
             )
 
         # Apply transit (learning can happen between observations)
@@ -57,9 +59,7 @@ class KnowledgeTracer:
 
         return new_p, new_p - p_mastery
 
-    def infer_from_chat(
-        self, p_mastery: float, confidence: float
-    ) -> tuple[float, float]:
+    def infer_from_chat(self, p_mastery: float, confidence: float) -> tuple[float, float]:
         """Soften mastery from conversational inference (not a hard correct/incorrect).
 
         When the LLM analyzes a chat message and assigns a confidence score (0-1)

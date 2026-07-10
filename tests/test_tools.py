@@ -2,7 +2,9 @@
 
 import pytest
 
-from app.tools import web_search, search_wikipedia, search_arxiv, browse_url
+from app.tools import search_arxiv
+from app.tools import search_wikipedia
+from app.tools import web_search
 
 
 @pytest.mark.asyncio

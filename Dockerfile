@@ -9,9 +9,11 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
+# Install deps first (cached layer)
 COPY pyproject.toml ./
 RUN uv pip install --system --no-cache .
 
+# Copy app code
 COPY . .
 
 # ─── API target ───

@@ -1,18 +1,27 @@
 """Mastery and knowledge graph router."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from typing import Annotated
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import Mastery, Concept, ConceptEdge, ErrorPattern, Learner
-from app.schemas import MasteryOut, CategoryProgress
+from app.models import Concept
+from app.models import ConceptEdge
+from app.models import ErrorPattern
+from app.models import Learner
+from app.models import Mastery
+from app.schemas import CategoryProgress
+from app.schemas import MasteryOut
 
 router = APIRouter()
 
 
 @router.get("/v1/mastery/{learner_id}", response_model=list[MasteryOut])
-async def get_mastery(learner_id: str, db: AsyncSession = Depends(get_db)):
+async def get_mastery(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
     """Get the learner's mastery state across all concepts."""
     stmt = (
         select(Mastery, Concept)
@@ -36,7 +45,7 @@ async def get_mastery(learner_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/v1/mastery/{learner_id}/categories", response_model=list[CategoryProgress])
-async def get_category_progress(learner_id: str, db: AsyncSession = Depends(get_db)):
+async def get_category_progress(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
     """Get progress grouped by category."""
     stmt = (
         select(Mastery, Concept)
@@ -50,29 +59,35 @@ async def get_category_progress(learner_id: str, db: AsyncSession = Depends(get_
         cat = concept.category
         if cat not in categories:
             categories[cat] = []
-        categories[cat].append({
-            "concept_id": concept.id,
-            "name": concept.name,
-            "mastery": mastery.p_mastery,
-            "difficulty": concept.difficulty,
-        })
+        categories[cat].append(
+            {
+                "concept_id": concept.id,
+                "name": concept.name,
+                "mastery": mastery.p_mastery,
+                "difficulty": concept.difficulty,
+            }
+        )
 
     result = []
     for cat, concepts in categories.items():
         avg = sum(c["mastery"] for c in concepts) / len(concepts)
-        result.append(CategoryProgress(
-            category=cat,
-            concept_count=len(concepts),
-            avg_mastery=avg,
-            concepts=concepts,
-        ))
+        result.append(
+            CategoryProgress(
+                category=cat,
+                concept_count=len(concepts),
+                avg_mastery=avg,
+                concepts=concepts,
+            )
+        )
     return result
 
 
 @router.get("/v1/mastery/{learner_id}/graph")
-async def get_mastery_graph(learner_id: str, db: AsyncSession = Depends(get_db)):
+async def get_mastery_graph(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
     """Get the knowledge graph with mastery overlay."""
-    learner = (await db.execute(select(Learner).where(Learner.id == learner_id))).scalar_one_or_none()
+    learner = (
+        await db.execute(select(Learner).where(Learner.id == learner_id))
+    ).scalar_one_or_none()
     if not learner:
         raise HTTPException(404, "Learner not found")
 
@@ -82,18 +97,24 @@ async def get_mastery_graph(learner_id: str, db: AsyncSession = Depends(get_db))
         mastery_map[m.concept_id] = m
 
     concepts = (
-        await db.execute(select(Concept).where(Concept.agent_id == learner.agent_id))
-    ).scalars().all()
+        (await db.execute(select(Concept).where(Concept.agent_id == learner.agent_id)))
+        .scalars()
+        .all()
+    )
 
     nodes = []
     for c in concepts:
         m = mastery_map.get(c.id)
-        nodes.append({
-            "id": c.id, "name": c.name, "category": c.category,
-            "difficulty": c.difficulty,
-            "mastery": m.p_mastery if m else None,
-            "interactions": m.interactions_count if m else 0,
-        })
+        nodes.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "category": c.category,
+                "difficulty": c.difficulty,
+                "mastery": m.p_mastery if m else None,
+                "interactions": m.interactions_count if m else 0,
+            }
+        )
 
     concept_ids = {c.id for c in concepts}
     edges_stmt = select(ConceptEdge).where(
@@ -108,7 +129,7 @@ async def get_mastery_graph(learner_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.get("/v1/mastery/{learner_id}/errors", response_model=list[dict])
-async def get_error_patterns(learner_id: str, db: AsyncSession = Depends(get_db)):
+async def get_error_patterns(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
     """Get recurring error patterns."""
     stmt = (
         select(ErrorPattern, Concept)
@@ -130,18 +151,28 @@ async def get_error_patterns(learner_id: str, db: AsyncSession = Depends(get_db)
 
 # ─── Concept management ───
 
+
 @router.post("/v1/concepts")
 async def add_concept(
-    agent_id: str, name: str, category: str = "general",
-    description: str = "", difficulty: float = 0.5,
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    agent_id: str,
+    name: str,
+    category: str = "general",
+    description: str = "",
+    difficulty: float = 0.5,
 ):
     """Manually add a concept to an agent's knowledge graph."""
     import uuid
+
     from app.models import Concept
+
     concept = Concept(
-        id=str(uuid.uuid4()), agent_id=agent_id, name=name,
-        category=category, description=description, difficulty=difficulty,
+        id=str(uuid.uuid4()),
+        agent_id=agent_id,
+        name=name,
+        category=category,
+        description=description,
+        difficulty=difficulty,
     )
     db.add(concept)
     await db.commit()

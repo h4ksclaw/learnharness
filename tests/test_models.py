@@ -1,7 +1,8 @@
 """Test agent models and creation."""
 
-from app.models import Agent
 import uuid
+
+from app.models import Agent
 
 
 def test_agent_creation():
