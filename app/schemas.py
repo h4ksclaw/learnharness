@@ -16,7 +16,6 @@ class AgentCreate(BaseModel):
     tools: list[str] = Field(default_factory=lambda: ["web_search", "wikipedia"])
     channels: dict[str, Any] = Field(default_factory=dict)
     heartbeat_interval: int = 300
-    llm_model: str | None = None
 
 
 class AgentOut(BaseModel):
@@ -26,7 +25,6 @@ class AgentOut(BaseModel):
     tools: list[str]
     channels: dict[str, Any]
     heartbeat_interval: int
-    llm_model: str | None
     active: bool
     created_at: datetime
 
@@ -52,7 +50,6 @@ class AgentOut(BaseModel):
             tools=agent.tools,
             channels=masked_channels,
             heartbeat_interval=agent.heartbeat_interval,
-            llm_model=agent.llm_model,
             active=agent.active,
             created_at=agent.created_at,
         )
@@ -68,7 +65,6 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
-    model: str | None = None
     temperature: float | None = None
     max_tokens: int | None = None
     stream: bool = False

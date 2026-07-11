@@ -91,7 +91,6 @@ class AgentHarness:
         else:
             llm_result = await llm_router.complete(
                 messages=messages_for_llm,
-                model=agent.llm_model or request.model,
                 temperature=request.temperature or 0.7,
                 max_tokens=request.max_tokens,
             )
@@ -169,7 +168,6 @@ class AgentHarness:
         request: ChatRequest,
     ) -> dict:
         """Call LLM with tools, handling tool-call loops via LLMRouter."""
-        model = agent.llm_model or request.model or None
         temperature = request.temperature or 0.7
 
         tool_calls_made: list[dict] = []
@@ -179,7 +177,6 @@ class AgentHarness:
             result = await llm_router.complete_with_tools(
                 messages=working_messages,
                 tools=tool_schemas,
-                model=model,
                 temperature=temperature,
                 max_tokens=request.max_tokens,
             )
@@ -227,7 +224,6 @@ class AgentHarness:
         # Max rounds reached — get final response without tools
         final = await llm_router.complete(
             messages=working_messages,
-            model=model,
             temperature=temperature,
             max_tokens=request.max_tokens,
         )

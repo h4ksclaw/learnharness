@@ -152,7 +152,6 @@ function AgentForm({
   const [heartbeat, setHeartbeat] = useState(
     agent?.heartbeat_interval ?? 300,
   );
-  const [llmModel, setLlmModel] = useState(agent?.llm_model ?? "");
   const [channels, setChannels] = useState(
     agent ? JSON.stringify(agent.channels, null, 2) : "{}",
   );
@@ -176,7 +175,6 @@ function AgentForm({
         tools,
         channels: parsedChannels,
         heartbeat_interval: heartbeat,
-        llm_model: llmModel || null,
       };
       if (agent) {
         await apiClient.updateAgent(agent.id, data);
@@ -258,17 +256,6 @@ function AgentForm({
                 type="number"
                 value={heartbeat}
                 onChange={(e) => setHeartbeat(Number(e.target.value))}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-zinc-400">
-                LLM Model (optional override)
-              </label>
-              <input
-                value={llmModel}
-                onChange={(e) => setLlmModel(e.target.value)}
-                placeholder="qwen2.5:3b"
                 className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
               />
             </div>

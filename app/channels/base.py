@@ -56,7 +56,6 @@ class ChannelConfig:
     agent_name: str
     master_prompt: str
     api_base: str = "http://api:8000"
-    llm_model: str | None = None
 
 
 @dataclass

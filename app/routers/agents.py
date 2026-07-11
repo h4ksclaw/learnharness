@@ -35,7 +35,6 @@ async def create_agent(req: AgentCreate, db: Annotated[AsyncSession, Depends(get
         tools=req.tools,
         channels=req.channels,
         heartbeat_interval=req.heartbeat_interval,
-        llm_model=req.llm_model,
     )
     db.add(agent)
     await db.commit()
@@ -63,7 +62,6 @@ async def update_agent(
     agent.tools = req.tools
     agent.channels = req.channels
     agent.heartbeat_interval = req.heartbeat_interval
-    agent.llm_model = req.llm_model
     await db.commit()
     await db.refresh(agent)
     return AgentOut.from_agent(agent)

@@ -36,12 +36,10 @@ class TestAgent:
             tools=["web_search", "arxiv", "browse_url"],
             channels={"irc": {"host": "irc.libera.chat", "channel": "#python"}},
             heartbeat_interval=600,
-            llm_model="qwen2.5:7b",
             active=True,
         )
         assert len(agent.tools) == 3
         assert "irc" in agent.channels
-        assert agent.llm_model == "qwen2.5:7b"
         assert agent.active is True
 
     def test_id_is_string(self):

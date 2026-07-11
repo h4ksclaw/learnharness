@@ -15,7 +15,6 @@ export interface Agent {
   tools: string[];
   channels: Record<string, unknown>;
   heartbeat_interval: number;
-  llm_model: string | null;
   active: boolean;
   created_at: string;
 }

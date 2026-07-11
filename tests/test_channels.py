@@ -135,7 +135,6 @@ class TestChannelConfig:
             master_prompt="You are a test agent.",
         )
         assert cc.api_base == "http://api:8000"
-        assert cc.llm_model is None
 
 
 class TestBaseChannelAdapter:

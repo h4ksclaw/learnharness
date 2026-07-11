@@ -56,7 +56,6 @@ async def get_channel_configs() -> list[tuple[ChannelConfig, dict, str]]:
                     agent_name=agent.name,
                     master_prompt=agent.master_prompt,
                     api_base=API_BASE,
-                    llm_model=agent.llm_model,
                 )
                 configs.append((cc, platform_config, platform))
 

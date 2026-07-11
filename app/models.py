@@ -57,8 +57,6 @@ class Agent(Base):
     channels: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     # How often to initiate contact (seconds). 0 = never.
     heartbeat_interval: Mapped[int] = mapped_column(Integer, default=300)
-    # Per-agent LLM override
-    llm_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Active toggle
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
