@@ -23,6 +23,7 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNotifications();
     const interval = setInterval(loadNotifications, 10000);
     return () => clearInterval(interval);

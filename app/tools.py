@@ -7,14 +7,17 @@ Tools are exposed to the LLM as function calls. The LLM decides when to use them
 """
 
 import re
+from collections.abc import Awaitable
+from collections.abc import Callable
 from typing import Any
+from typing import cast
 
 import httpx
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
 
 
-async def web_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
+async def web_search(query: str, max_results: int = 5) -> list[dict[str, str | list[str]]]:
     """Search the web using DuckDuckGo HTML (no API key needed)."""
     results = []
     url = f"https://html.duckduckgo.com/html/?q={query.replace(' ', '+')}"
@@ -66,7 +69,7 @@ async def browse_url(url: str, max_chars: int = 5000) -> str:
             text = md(str(main), strip=["img", "iframe"])
             # Clean up excessive whitespace
             text = re.sub(r"\n{3,}", "\n\n", text)
-            return text[:max_chars]
+            return str(text[:max_chars])
         return "Could not extract content."
     except Exception as e:
         return f"Error fetching {url}: {e}"
@@ -78,7 +81,7 @@ async def search_wikipedia(query: str, sentences: int = 5) -> str:
         async with httpx.AsyncClient(timeout=15) as client:
             # Search for the article
             search_url = "https://en.wikipedia.org/w/api.php"
-            params = {
+            params: dict[str, str | int] = {
                 "action": "query",
                 "list": "search",
                 "srsearch": query,
@@ -116,7 +119,7 @@ async def search_arxiv(query: str, max_results: int = 3) -> list[dict[str, str]]
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             url = "http://export.arxiv.org/api/query"
-            params = {
+            params: dict[str, str | int] = {
                 "search_query": f"all:{query}",
                 "start": 0,
                 "max_results": max_results,
@@ -228,7 +231,7 @@ async def execute_tool(tool_name: str, arguments: dict[str, Any]) -> Any:
     if tool_name not in TOOL_DEFINITIONS:
         return {"error": f"Unknown tool: {tool_name}"}
 
-    func = TOOL_DEFINITIONS[tool_name]["function"]
+    func = cast(Callable[..., Awaitable[object]], TOOL_DEFINITIONS[tool_name]["function"])
     try:
         result = await func(**arguments)
         return result

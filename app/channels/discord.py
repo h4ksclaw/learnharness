@@ -17,12 +17,16 @@ Config (from agent.channels["discord"]):
 import asyncio
 import json
 import logging
+from typing import TYPE_CHECKING
 
 import httpx
 
 from app.channels.base import BaseChannelAdapter
 from app.channels.base import ChannelConfig
 from app.channels.base import InboundMessage
+
+if TYPE_CHECKING:
+    from websockets.asyncio.client import ClientConnection
 
 log = logging.getLogger("learnharness.channels.discord")
 
@@ -38,7 +42,7 @@ class DiscordAdapter(BaseChannelAdapter):
         self.headers = {"Authorization": f"Bot {self.token}"}
         self._session_id: str | None = None
         self._seq: int | None = None
-        self._ws = None  # websockets.WebSocketClientProtocol
+        self._ws: ClientConnection | None = None  # websockets.WebSocketClientProtocol
 
     async def connect(self) -> None:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -56,6 +60,7 @@ class DiscordAdapter(BaseChannelAdapter):
         gateway_url = "wss://gateway.discord.gg/?v=10&encoding=json"
         self._ws = await websockets.connect(gateway_url)
 
+        assert self._ws is not None
         hello = json.loads(await self._ws.recv())
         heartbeat_interval = hello["d"]["heartbeat_interval"]
         log.debug("Discord heartbeat interval: %sms", heartbeat_interval)
@@ -100,6 +105,7 @@ class DiscordAdapter(BaseChannelAdapter):
                 if not self._ws:
                     await self._gateway_connect()
 
+                assert self._ws is not None
                 raw = await self._ws.recv()
                 payload = json.loads(raw)
 

@@ -3,26 +3,23 @@
 import { useEffect, useState } from "react";
 import {
   apiClient,
-  type Agent,
-  type Learner,
   type CategoryProgress,
   type MasteryOut,
 } from "@/lib/api";
 import { Brain, TrendingUp, Target, BookOpen } from "lucide-react";
 
 export default function MasteryPage() {
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [learnerId, setLearnerId] = useState("");
   const [mastery, setMastery] = useState<MasteryOut[]>([]);
   const [categories, setCategories] = useState<CategoryProgress[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    apiClient.listAgents().then(setAgents).catch(() => setAgents([]));
     // Read learner ID from the shared session
     try {
       const session = JSON.parse(localStorage.getItem("lh_session") || "{}");
       if (session.learnerId) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLearnerId(session.learnerId);
       }
     } catch {
@@ -40,6 +37,7 @@ export default function MasteryPage() {
       } catch {
         // ignore
       }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       Promise.all([
         apiClient.getMastery(learnerId).catch(() => []),

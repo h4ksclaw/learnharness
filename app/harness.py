@@ -13,6 +13,8 @@ import time
 import uuid
 from datetime import UTC
 from datetime import datetime
+from typing import Literal
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +35,15 @@ from app.schemas import Correction
 from app.schemas import MasteryDelta
 from app.tools import execute_tool
 from app.tools import get_openai_tool_schemas
+
+_VALID_SEVERITIES = frozenset({"error", "warning", "suggestion"})
+
+
+def _validate_severity(sev: str) -> Literal["error", "warning", "suggestion"]:
+    return cast(
+        Literal["error", "warning", "suggestion"],
+        sev if sev in _VALID_SEVERITIES else "warning",
+    )
 
 
 class AgentHarness:
@@ -96,7 +107,7 @@ class AgentHarness:
                 concept_id=concept_map[c.concept_name].id
                 if c.concept_name and c.concept_name in concept_map
                 else None,
-                severity=c.severity,
+                severity=_validate_severity(c.severity),
             )
             for c in analysis.corrections
         ]
@@ -232,11 +243,11 @@ class AgentHarness:
             stmt = select(Agent).where(Agent.id == agent_id)
             agent = (await db.execute(stmt)).scalar_one_or_none()
             if agent:
-                return agent
-        stmt = select(Agent).where(Agent.active == True).limit(1)  # noqa: E712
+                return cast("Agent", agent)
+        stmt = select(Agent).where(Agent.active == True)  # noqa: E712
         agent = (await db.execute(stmt)).scalar_one_or_none()
         if agent:
-            return agent
+            return cast("Agent", agent)
         raise ValueError("No agent found. Create one via POST /v1/agents")
 
     async def _get_or_create_learner(
@@ -246,11 +257,11 @@ class AgentHarness:
             stmt = select(Learner).where(Learner.id == learner_id)
             learner = (await db.execute(stmt)).scalar_one_or_none()
             if learner:
-                return learner
+                return cast("Learner", learner)
         learner = Learner(id=learner_id or str(uuid.uuid4()), agent_id=agent_id)
         db.add(learner)
         await db.flush()
-        return learner
+        return cast("Learner", learner)
 
     async def _get_concept_names(self, db: AsyncSession, agent_id: str) -> list[str]:
         stmt = select(Concept.name).where(Concept.agent_id == agent_id)

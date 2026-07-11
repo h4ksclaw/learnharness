@@ -86,7 +86,7 @@ class FSRSScheduler:
     def is_due(self, item: ReviewItem, now: datetime | None = None) -> bool:
         """Check if a review item is due."""
         now = now or datetime.now(UTC)
-        return item.next_review <= now
+        return bool(item.next_review <= now)
 
 
 # Singleton

@@ -51,6 +51,7 @@ export default function ChatPage() {
     if (saved) {
       try {
         const s = JSON.parse(saved);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (s.learnerId) setLearnerId(s.learnerId);
         if (s.threads) setThreads(s.threads);
         if (s.activeThread) setActiveThread(s.activeThread);

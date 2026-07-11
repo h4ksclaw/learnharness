@@ -14,10 +14,12 @@ import json
 import time
 from typing import Any
 from typing import TypeVar
+from typing import cast
 
 import httpx
 import instructor
 from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
 from app.config import settings
@@ -112,19 +114,22 @@ class LLMRouter:
                 temperature=temperature,
                 response_format={"type": "json_object"},
             )
-            return json.loads(result["content"])
+            parsed: dict[str, Any] = json.loads(result["content"])
+            return parsed
         except (json.JSONDecodeError, httpx.HTTPStatusError):
             # Fallback: try without response_format, extract JSON from text
             result = await self.complete(messages, model=model, temperature=temperature)
             content = result["content"]
             try:
-                return json.loads(content)
+                parsed = json.loads(content)
+                return parsed
             except json.JSONDecodeError:
                 # Last resort: find first { and last }
                 start_idx = content.find("{")
                 end_idx = content.rfind("}")
                 if start_idx >= 0 and end_idx > start_idx:
-                    return json.loads(content[start_idx : end_idx + 1])
+                    parsed = json.loads(content[start_idx : end_idx + 1])
+                    return parsed
                 raise ValueError(
                     f"Could not parse JSON from LLM response: {content[:200]}"
                 ) from None
@@ -145,11 +150,11 @@ class LLMRouter:
             result = await self._structured.chat.completions.create(
                 model=model or self.default_model,
                 response_model=response_model,
-                messages=messages,
+                messages=cast(list[ChatCompletionMessageParam], messages),
                 temperature=temperature,
                 max_retries=max_retries,
             )
-            return result
+            return cast("T", result)
         except Exception:
             # Fallback: JSON mode + manual Pydantic parse
             data = await self.complete_json(messages, model=model, temperature=temperature)
@@ -224,7 +229,7 @@ class LLMRouter:
                 input=text,
                 model=embed_model,
             )
-            return response.data[0].embedding
+            return list(response.data[0].embedding)
         except Exception:
             return None
 

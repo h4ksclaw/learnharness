@@ -91,7 +91,7 @@ async def create_learner(
     db.add(learner)
     await db.commit()
     await db.refresh(learner)
-    return learner
+    return LearnerOut.model_validate(learner)
 
 
 @router.get("/v1/learners/{learner_id}", response_model=LearnerOut)
@@ -101,4 +101,4 @@ async def get_learner(learner_id: str, db: Annotated[AsyncSession, Depends(get_d
     ).scalar_one_or_none()
     if not learner:
         raise HTTPException(404, "Learner not found")
-    return learner
+    return LearnerOut.model_validate(learner)

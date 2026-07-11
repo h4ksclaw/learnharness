@@ -113,15 +113,15 @@ async def get_mastery_graph(
 
     nodes = []
     for c in concepts:
-        m = mastery_map.get(c.id)
+        mastery_entry: Mastery | None = mastery_map.get(c.id)
         nodes.append(
             {
                 "id": c.id,
                 "name": c.name,
                 "category": c.category,
                 "difficulty": c.difficulty,
-                "mastery": m.p_mastery if m else None,
-                "interactions": m.interactions_count if m else 0,
+                "mastery": mastery_entry.p_mastery if mastery_entry else None,
+                "interactions": mastery_entry.interactions_count if mastery_entry else 0,
             }
         )
 
@@ -184,4 +184,4 @@ async def add_concept(
     db.add(concept)
     await db.commit()
     await db.refresh(concept)
-    return concept
+    return ConceptOut.model_validate(concept)

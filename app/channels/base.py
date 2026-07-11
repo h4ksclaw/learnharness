@@ -279,7 +279,8 @@ class BaseChannelAdapter(ABC):
                     json={"agent_id": self.config.agent_id, "name": name},
                 )
                 resp.raise_for_status()
-                return resp.json().get("id")
+                learner_id: str | None = resp.json().get("id")
+                return learner_id
         except Exception:
             log.exception("Failed to create learner")
             return None

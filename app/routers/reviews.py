@@ -32,7 +32,7 @@ async def get_due_reviews(
         )
         .order_by(ReviewItem.next_review)
     )
-    return (await db.execute(stmt)).scalars().all()
+    return [ReviewItemOut.model_validate(r) for r in (await db.execute(stmt)).scalars().all()]
 
 
 @router.post("/v1/reviews/{review_id}/answer", response_model=ReviewItemOut)
@@ -47,7 +47,7 @@ async def answer_review(
     updated = fsrs_scheduler.review(item, answer.rating)
     await db.commit()
     await db.refresh(updated)
-    return updated
+    return ReviewItemOut.model_validate(updated)
 
 
 @router.get("/v1/reviews/{learner_id}/all", response_model=list[ReviewItemOut])
@@ -59,4 +59,4 @@ async def get_all_reviews(
         .where(ReviewItem.learner_id == learner_id)
         .order_by(ReviewItem.next_review)
     )
-    return (await db.execute(stmt)).scalars().all()
+    return [ReviewItemOut.model_validate(r) for r in (await db.execute(stmt)).scalars().all()]

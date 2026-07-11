@@ -16,13 +16,14 @@ export default function AgentsPage() {
     try {
       const data = await apiClient.listAgents();
       setAgents(data);
-    } catch (e) {
+    } catch {
       setAgents([]);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAgents();
   }, [loadAgents]);
 
