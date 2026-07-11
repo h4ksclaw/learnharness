@@ -151,7 +151,7 @@ flowchart TD
     P3["③ MASTERY UPDATE — BKT<br/>For each concept detected:<br/>Update P(mastery) using BKT<br/>with soft inference from LLM confidence"]
     P3 --> P4
 
-    P4["④ CONTEXT BUILDING<br/>Query learner's current state:<br/>Weak areas < 50%<br/>Mastered concepts > 80%<br/>Inject into system prompt"]
+    P4["④ CONTEXT BUILDING<br/>Query learner current state:<br/>Weak areas below 50%<br/>Mastered concepts above 80%<br/>Inject into system prompt"]
     P4 --> P5
 
     P5{"Agent has<br/>tools?"}
@@ -222,19 +222,19 @@ flowchart LR
     TICK[Heartbeat tick<br/>every 60s] --> LOOP
 
     subgraph LOOP["For each active agent"]
-        CHECK{"Time since<br/>last heartbeat<br/>≥ interval?"}
+        CHECK{"Time since last<br/>heartbeat ≥ interval?"}
         CHECK -- No --> SKIP[Skip]
         CHECK -- Yes --> L1
 
         subgraph L1["For each learner"]
             R{"FSRS reviews<br/>due?"}
-            R -- Yes --> MSG1["📝 Review reminder<br/>'You have N reviews due'"]
+            R -- Yes --> MSG1["Review reminder<br/>N reviews due"]
 
-            I{"Inactive<br/>> 24h?"}
-            I -- Yes --> MSG2["👋 Inactivity checkin<br/>'Want to practice?'"}
+            I{"Inactive<br/>over 24h?"}
+            I -- Yes --> MSG2["Inactivity checkin<br/>Want to practice?"]
 
-            W{"Weakest concept<br/>< 30%?"}
-            W -- Yes --> MSG3["🎯 Weak spot focus<br/>'Let's work on X'"]
+            W{"Weakest concept<br/>below 30%?"}
+            W -- Yes --> MSG3["Weak spot focus<br/>Lets work on X"]
         end
 
         MSG1 --> Q[Outbound message queue]
@@ -243,7 +243,7 @@ flowchart LR
     end
 
     Q --> ADAPTER["Channel Adapters<br/>poll /v1/outbound"]
-    ADAPTER --> DELIVER["Deliver via IRC<br/>Telegram · Discord · Web push"]
+    ADAPTER --> DELIVER["Deliver via IRC<br/>Telegram, Discord, Web push"]
 
     style TICK fill:#FF9800,stroke:none,color:#000
     style Q fill:#569CD6,stroke:none,color:#000
