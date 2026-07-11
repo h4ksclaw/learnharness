@@ -334,7 +334,6 @@ learnharness/
 ├── docs/
 │   ├── ARCHITECTURE.md          # This file
 │   └── VISION.md                # Vision + design decisions
-├── deploy/                      # Demo deployment configs
 ├── compose.yaml                 # Full stack: db + api + worker + channels + web + ollama
 ├── Dockerfile                   # Multi-stage: api, worker, channels targets
 ├── pyproject.toml
