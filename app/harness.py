@@ -157,84 +157,76 @@ class AgentHarness:
         agent: Agent,
         request: ChatRequest,
     ) -> dict:
-        """Call LLM with tools, handling tool-call loops."""
-        import httpx
-
+        """Call LLM with tools, handling tool-call loops via LLMRouter."""
         model = agent.llm_model or request.model or None
-        headers = {"Content-Type": "application/json"}
-        if llm_router.api_key and llm_router.api_key != "not-needed":
-            headers["Authorization"] = f"Bearer {llm_router.api_key}"
+        temperature = request.temperature or 0.7
 
-        payload = {
-            "model": model or llm_router.default_model,
-            "messages": messages,
-            "temperature": request.temperature or 0.7,
-            "tools": tool_schemas,
-        }
-        if request.max_tokens:
-            payload["max_tokens"] = request.max_tokens
+        tool_calls_made: list[dict] = []
+        working_messages = list(messages)
 
-        tool_calls_made = []
-        async with httpx.AsyncClient(timeout=120) as client:
-            for _ in range(5):  # max 5 tool-call rounds
-                resp = await client.post(
-                    f"{llm_router.base_url}/chat/completions",
-                    json=payload,
-                    headers=headers,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-                msg = data["choices"][0]["message"]
-
-                if not msg.get("tool_calls"):
-                    # No more tool calls — return final response
-                    return {
-                        "content": msg["content"],
-                        "model": data.get("model", model),
-                        "usage": data.get("usage", {}),
-                        "tool_calls_made": tool_calls_made,
-                    }
-
-                # Execute tool calls
-                payload["messages"].append(msg)
-
-                for tc in msg["tool_calls"]:
-                    fn_name = tc["function"]["name"]
-                    fn_args = json.loads(tc["function"]["arguments"])
-
-                    result = await execute_tool(fn_name, fn_args)
-                    tool_calls_made.append(
-                        {
-                            "tool": fn_name,
-                            "args": fn_args,
-                            "result": str(result)[:1000],
-                        }
-                    )
-
-                    payload["messages"].append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc["id"],
-                            "content": json.dumps(result, default=str)[:5000],
-                        }
-                    )
-
-            # Max rounds reached — get final response without tools
-            payload.pop("tools", None)
-            resp = await client.post(
-                f"{llm_router.base_url}/chat/completions",
-                json=payload,
-                headers=headers,
+        for _ in range(5):  # max 5 tool-call rounds
+            result = await llm_router.complete_with_tools(
+                messages=working_messages,
+                tools=tool_schemas,
+                model=model,
+                temperature=temperature,
+                max_tokens=request.max_tokens,
             )
-            resp.raise_for_status()
-            data = resp.json()
-            return {
-                "content": data["choices"][0]["message"]["content"],
-                "model": data.get("model", model),
-                "usage": data.get("usage", {}),
-                "tool_calls_made": tool_calls_made,
-            }
+
+            tool_calls = result.get("tool_calls")
+
+            if not tool_calls:
+                return {
+                    "content": result["content"],
+                    "model": result["model"],
+                    "usage": result.get("usage", {}),
+                    "tool_calls_made": tool_calls_made,
+                }
+
+            # Append assistant message with tool calls
+            working_messages.append(
+                {
+                    "role": "assistant",
+                    "content": result.get("content") or "",
+                    "tool_calls": tool_calls,
+                }
+            )
+
+            # Execute each tool call
+            for tc in tool_calls:
+                fn_name = tc["function"]["name"]
+                fn_args = json.loads(tc["function"]["arguments"])
+
+                tool_result = await execute_tool(fn_name, fn_args)
+                tool_calls_made.append(
+                    {
+                        "tool": fn_name,
+                        "args": fn_args,
+                        "result": str(tool_result)[:1000],
+                    }
+                )
+
+                working_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": json.dumps(tool_result, default=str)[:5000],
+                    }
+                )
+
+        # Max rounds reached — get final response without tools
+        final = await llm_router.complete(
+            messages=working_messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=request.max_tokens,
+        )
+        return {
+            "content": final["content"],
+            "model": final["model"],
+            "usage": final.get("usage", {}),
+            "tool_calls_made": tool_calls_made,
+        }
 
     async def _get_agent(self, db: AsyncSession, agent_id: str | None) -> Agent:
         if agent_id:

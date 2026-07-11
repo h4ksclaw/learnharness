@@ -159,6 +159,67 @@ class LLMRouter:
             data = await self.complete_json(messages, model=model, temperature=temperature)
             return response_model.model_validate(data)
 
+    async def complete_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        max_rounds: int = 5,
+    ) -> dict[str, Any]:
+        """Call the LLM with tool-calling support.
+
+        Handles the tool-call loop: sends the request, detects tool_calls in the
+        response, and returns them. The caller is responsible for executing the
+        tools and re-calling with the results appended to messages.
+
+        Args:
+            messages: Chat messages including any prior tool results.
+            tools: OpenAI-format tool schemas.
+            model: Override model name.
+            temperature: Sampling temperature.
+            max_tokens: Max response tokens.
+            max_rounds: Not used here — caller controls the loop.
+
+        Returns:
+            dict with content, tool_calls, model, usage, latency_ms
+        """
+        model = model or self.default_model
+        headers = {"Content-Type": "application/json"}
+        if self.api_key and self.api_key != "not-needed":
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "tools": tools,
+        }
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+
+        start = time.monotonic()
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        latency_ms = int((time.monotonic() - start) * 1000)
+        msg = data["choices"][0]["message"]
+
+        return {
+            "content": msg.get("content"),
+            "tool_calls": msg.get("tool_calls"),
+            "model": data.get("model", model),
+            "usage": data.get("usage", {}),
+            "latency_ms": latency_ms,
+        }
+
     async def embed(self, text: str, model: str | None = None) -> list[float]:
         """Generate an embedding vector for text.
 
