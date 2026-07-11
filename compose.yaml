@@ -87,6 +87,9 @@ services:
       - ./:/app
 
   ollama:
+    # Only needed for local LLM inference.
+    # If using a cloud API (z.ai, OpenAI, Groq, etc.), this container
+    # is unused — just set LLM_BASE_URL in .env and it stays idle.
     image: ollama/ollama:latest
     restart: unless-stopped
     volumes:

@@ -8,6 +8,7 @@ graph TB
         Web["Web UI<br/>management + chat"]
         IRC["IRC Bot<br/>text-only"]
         TG["Telegram Bot<br/>inline buttons"]
+        DC["Discord Bot"]
         CLI["CLI / curl<br/>any OpenAI client"]
     end
 
@@ -27,7 +28,8 @@ graph TB
             SCHED["Scheduler<br/>Due reviews<br/>Inactive checkins<br/>Weak spot focus"]
         end
 
-        LLM["LLM Router<br/>Ollama · OpenAI · vLLM<br/>Any OpenAI-compatible"]
+        CHAN["Channel Manager<br/>IRC · Telegram · Discord<br/>Access control + routing"]
+        LLM["LLM Router<br/>Ollama · OpenAI · vLLM · z.ai<br/>Any OpenAI-compatible"]
     end
 
     subgraph Data["PostgreSQL + pgvector"]
@@ -48,6 +50,7 @@ graph TB
     H --> FSRS
     H --> LLM
     SCHED --> FSRS
+    CHAN --> API
     KG --> Data
     BKT --> Data
     FSRS --> Data
@@ -209,6 +212,7 @@ The API returns a standard OpenAI response with optional extension fields:
 | **Web UI** | Corrections as inline expandable overlays, mastery deltas as badges, reviews as toasts |
 | **IRC bot** | Flatten to text: `"⚠️ Correction: use 'haben' with 'Mühe'"` |
 | **Telegram** | Inline keyboard buttons: `[Expand correction]` `[Show progress]` |
+| **Discord** | Threaded replies with embed cards |
 | **Standard OpenAI client** | Just sees the text response — learning logic runs silently |
 
 ## Proactive Scheduler (Heartbeat)
@@ -227,7 +231,7 @@ flowchart LR
             R -- Yes --> MSG1["📝 Review reminder<br/>'You have N reviews due'"]
 
             I{"Inactive<br/>> 24h?"}
-            I -- Yes --> MSG2["👋 Inactivity checkin<br/>'Want to practice?'"]
+            I -- Yes --> MSG2["👋 Inactivity checkin<br/>'Want to practice?'"}
 
             W{"Weakest concept<br/>< 30%?"}
             W -- Yes --> MSG3["🎯 Weak spot focus<br/>'Let's work on X'"]
@@ -239,11 +243,39 @@ flowchart LR
     end
 
     Q --> ADAPTER["Channel Adapters<br/>poll /v1/outbound"]
-    ADAPTER --> DELIVER["Deliver via IRC<br/>Telegram · Web push"]
+    ADAPTER --> DELIVER["Deliver via IRC<br/>Telegram · Discord · Web push"]
 
     style TICK fill:#FF9800,stroke:none,color:#000
     style Q fill:#569CD6,stroke:none,color:#000
     style DELIVER fill:#4EC9B0,stroke:none,color:#000
+```
+
+## Container Stack
+
+```mermaid
+graph LR
+    subgraph Docker Compose
+        DB[("db<br/>pgvector/pgvector:pg16<br/>:5432")]
+        API2["api<br/>FastAPI + uvicorn<br/>:8000"]
+        WRK["worker<br/>Heartbeat loop"]
+        CHN["channels<br/>IRC · TG · Discord"]
+        WEB["web<br/>Next.js 15<br/>:3000"]
+        OLL["ollama<br/>LLM inference<br/>:11434"]
+    end
+
+    API2 --> DB
+    WRK --> DB
+    CHN --> API2
+    CHN --> DB
+    WEB --> API2
+    API2 --> OLL
+
+    style DB fill:#336791,stroke:none,color:#fff
+    style API2 fill:#009688,stroke:none,color:#fff
+    style WRK fill:#FF9800,stroke:none,color:#fff
+    style CHN fill:#9C27B0,stroke:none,color:#fff
+    style WEB fill:#61DAFB,stroke:none,color:#000
+    style OLL fill:#4A154B,stroke:none,color:#fff
 ```
 
 ## File Structure
@@ -265,28 +297,46 @@ learnharness/
 │   │   ├── mastery.py           # Knowledge state + graph queries
 │   │   ├── reviews.py           # FSRS review management
 │   │   └── heartbeat.py         # Outbound message queue
+│   ├── channels/
+│   │   ├── base.py              # BaseChannelAdapter + AccessControl
+│   │   ├── irc.py               # IRC adapter (asyncio sockets)
+│   │   ├── telegram.py          # Telegram adapter (httpx long-poll)
+│   │   ├── discord.py           # Discord adapter (websockets + REST)
+│   │   └── manager.py           # Channel lifecycle manager
 │   └── engine/
 │       ├── llm.py               # OpenAI-compatible LLM router + instructor
 │       ├── fsrs_sched.py        # FSRS spaced repetition
 │       ├── knowledge_tracing.py # BKT mastery estimation
 │       └── knowledge_graph.py   # LLM concept extraction + graph mgmt
+├── web/                         # Next.js 15 frontend
+│   └── src/app/
+│       ├── page.tsx             # Agent management (home)
+│       ├── chat/page.tsx        # Chat interface
+│       ├── mastery/page.tsx     # FSRS + BKT dashboard
+│       └── settings/page.tsx    # Settings
 ├── tests/
 │   ├── test_fsrs_time.py        # Time-simulated FSRS tests (20)
 │   ├── test_bkt_comprehensive.py # BKT convergence/dynamics (19)
+│   ├── test_channels.py         # Channel access control (20)
+│   ├── test_schemas.py          # Pydantic validation (19)
+│   ├── test_models.py           # Model validation (16)
+│   ├── test_bkt.py              # KnowledgeTracer (9)
+│   ├── test_schemas_extended.py # Extended schemas (7)
+│   ├── test_config.py           # Settings (6)
 │   ├── test_knowledge_tracing.py # Basic BKT (5)
+│   ├── test_tools_registry.py   # Tool registry (4)
 │   ├── test_fsrs.py             # Basic FSRS (4)
-│   ├── test_models.py           # Model validation (2)
-│   ├── test_tools.py            # Live tool tests (3)
-│   └── test_learning_simulation.py # E2E 8-turn conversation
+│   └── test_learning_simulation.py # E2E conversation
 ├── .github/workflows/
-│   ├── tests.yml                # Python 3.11+3.12 matrix CI
-│   └── docker.yml               # Docker compose verification
+│   ├── tests.yml                # Lint + test (Python 3.11+3.12) + web build
+│   ├── docker.yml               # Docker compose verification
+│   └── docker-publish.yml       # Build & publish to GHCR
 ├── docs/
-│   ├── VISION.md                # Vision + design decisions
-│   └── ARCHITECTURE.md          # This file
-├── compose.yaml                 # Postgres+pgvector + API + worker + ollama
-├── Dockerfile
-├── init_db.py                   # DB initialization script
+│   ├── ARCHITECTURE.md          # This file
+│   └── VISION.md                # Vision + design decisions
+├── deploy/                      # Demo deployment configs
+├── compose.yaml                 # Full stack: db + api + worker + channels + web + ollama
+├── Dockerfile                   # Multi-stage: api, worker, channels targets
 ├── pyproject.toml
 └── README.md
 ```
