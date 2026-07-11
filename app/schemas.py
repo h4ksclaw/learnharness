@@ -32,6 +32,31 @@ class AgentOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @classmethod
+    def from_agent(cls, agent: Any) -> "AgentOut":
+        """Build AgentOut from an Agent model, masking sensitive channel fields."""
+        masked_channels: dict[str, Any] = {}
+        for platform, cfg in (agent.channels or {}).items():
+            if isinstance(cfg, dict):
+                masked = {**cfg}
+                for key in ("token", "password", "api_key", "webhook_url"):
+                    if key in masked:
+                        masked[key] = "***"
+                masked_channels[platform] = masked
+            else:
+                masked_channels[platform] = cfg
+        return cls(
+            id=agent.id,
+            name=agent.name,
+            master_prompt=agent.master_prompt,
+            tools=agent.tools,
+            channels=masked_channels,
+            heartbeat_interval=agent.heartbeat_interval,
+            llm_model=agent.llm_model,
+            active=agent.active,
+            created_at=agent.created_at,
+        )
+
 
 # ─── Chat (OpenAI-compatible) ───
 
@@ -163,6 +188,24 @@ class LearnerOut(BaseModel):
 class CategoryCreate(BaseModel):
     name: str
     description: str = ""
+
+
+class ConceptCreate(BaseModel):
+    agent_id: str
+    name: str
+    category: str = "general"
+    description: str = ""
+    difficulty: float = 0.5
+
+
+class ConceptOut(BaseModel):
+    id: str
+    name: str
+    category: str
+    description: str
+    difficulty: float
+
+    model_config = {"from_attributes": True}
 
 
 # ─── Outbound ───

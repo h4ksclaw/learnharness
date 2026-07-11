@@ -43,7 +43,6 @@ async def check_heartbeat(agent: Agent) -> list[OutboundMessage]:
         learners = (await db.execute(stmt)).scalars().all()
 
         for learner in learners:
-            # Check FSRS reviews due
             review_stmt = select(ReviewItem).where(
                 ReviewItem.learner_id == learner.id,
                 ReviewItem.next_review <= now,
@@ -75,7 +74,6 @@ async def check_heartbeat(agent: Agent) -> list[OutboundMessage]:
                 )
                 continue
 
-            # Check inactivity
             if learner.last_active:
                 inactive_hours = (now - learner.last_active).total_seconds() / 3600
                 if inactive_hours > 24:
@@ -93,7 +91,6 @@ async def check_heartbeat(agent: Agent) -> list[OutboundMessage]:
                     )
                     continue
 
-            # Check weak spots
             weak_stmt = (
                 select(Mastery, Concept)
                 .join(Concept, Mastery.concept_id == Concept.id)

@@ -128,19 +128,15 @@ class AccessControl:
         is_mentioned: bool,
     ) -> tuple[bool, str]:
         """Full access check. Returns (allowed, reason)."""
-        # Check user allowlist/blocklist
         if not self.is_user_allowed(user_id, username):
             return False, f"User '{username}' not in allowed list or is blocked"
 
-        # Check DM permissions
         if is_dm and not self.allow_dms:
             return False, "DMs not allowed for this channel"
 
-        # Check channel allowlist (for non-DMs)
         if not is_dm and not self.is_channel_allowed(channel_id):
             return False, f"Channel '{channel_id}' not in allowed list"
 
-        # Check mention requirement (channels only, not DMs)
         if not is_dm and self.require_mention and not is_mentioned:
             return False, "Bot not mentioned and require_mention is true"
 

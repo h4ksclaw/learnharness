@@ -67,7 +67,7 @@ class AgentHarness:
         learner_context = await kg_engine.get_learner_context(db, learner.id, agent.id)
         system_prompt = f"{agent.master_prompt}\n\n---\n{learner_context}"
 
-        # ─── Phase 4: Call LLM (with tools) ───
+        # ─── Phase 4: Call LLM ───
         messages_for_llm = [{"role": "system", "content": system_prompt}]
         for msg in request.messages:
             messages_for_llm.append({"role": msg.role, "content": msg.content})
@@ -101,7 +101,7 @@ class AgentHarness:
             for c in analysis.corrections
         ]
 
-        m_deltas = [
+        mastery_deltas_out = [
             MasteryDelta(
                 concept_id=d["concept_id"],
                 concept_name=name,
@@ -144,7 +144,7 @@ class AgentHarness:
             ],
             usage=ChatResponseUsage(**llm_result.get("usage", {})),
             corrections=corrections,
-            mastery_deltas=m_deltas,
+            mastery_deltas=mastery_deltas_out,
             concepts_detected=list(concept_map.keys()),
             reviews_due=due_reviews,
             tool_calls=tool_calls_made,
@@ -192,7 +192,6 @@ class AgentHarness:
                 }
             )
 
-            # Execute each tool call
             for tc in tool_calls:
                 fn_name = tc["function"]["name"]
                 fn_args = json.loads(tc["function"]["arguments"])

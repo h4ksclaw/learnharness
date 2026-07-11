@@ -139,17 +139,13 @@ class LLMRouter:
     ) -> T:
         """Call the LLM with instructor for guaranteed structured output.
 
-        Uses Pydantic model validation with automatic retry on failure.
-        This is the most robust way to get structured data from an LLM.
-
-        Falls back to complete_json + manual parse if instructor fails
-        (e.g., Ollama doesn't support structured output well).
+        Falls back to complete_json + manual parse if instructor fails.
         """
         try:
             result = await self._structured.chat.completions.create(
                 model=model or self.default_model,
                 response_model=response_model,
-                messages=messages,  # type: ignore
+                messages=messages,
                 temperature=temperature,
                 max_retries=max_retries,
             )
@@ -221,13 +217,7 @@ class LLMRouter:
         }
 
     async def embed(self, text: str, model: str | None = None) -> list[float] | None:
-        """Generate an embedding vector for text.
-
-        Uses the OpenAI-compatible embeddings endpoint.
-        Works with Ollama, OpenAI, vLLM, etc.
-
-        Returns a list of floats, or None if embeddings are unavailable.
-        """
+        """Generate an embedding vector for text."""
         embed_model = model or "default"
         try:
             response = await self._client.embeddings.create(

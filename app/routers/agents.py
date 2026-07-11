@@ -21,13 +21,13 @@ router = APIRouter()
 
 
 @router.get("/v1/agents", response_model=list[AgentOut])
-async def list_agents(db: Annotated[AsyncSession, Depends(get_db)]):
+async def list_agents(db: Annotated[AsyncSession, Depends(get_db)]) -> list[AgentOut]:
     result = await db.execute(select(Agent).order_by(Agent.created_at))
-    return result.scalars().all()
+    return [AgentOut.from_agent(a) for a in result.scalars().all()]
 
 
 @router.post("/v1/agents", response_model=AgentOut, status_code=201)
-async def create_agent(req: AgentCreate, db: Annotated[AsyncSession, Depends(get_db)]):
+async def create_agent(req: AgentCreate, db: Annotated[AsyncSession, Depends(get_db)]) -> AgentOut:
     agent = Agent(
         id=str(uuid.uuid4()),
         name=req.name,
@@ -40,21 +40,21 @@ async def create_agent(req: AgentCreate, db: Annotated[AsyncSession, Depends(get
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
-    return agent
+    return AgentOut.from_agent(agent)
 
 
 @router.get("/v1/agents/{agent_id}", response_model=AgentOut)
-async def get_agent(agent_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_agent(agent_id: str, db: Annotated[AsyncSession, Depends(get_db)]) -> AgentOut:
     agent = (await db.execute(select(Agent).where(Agent.id == agent_id))).scalar_one_or_none()
     if not agent:
         raise HTTPException(404, "Agent not found")
-    return agent
+    return AgentOut.from_agent(agent)
 
 
 @router.put("/v1/agents/{agent_id}", response_model=AgentOut)
 async def update_agent(
     agent_id: str, req: AgentCreate, db: Annotated[AsyncSession, Depends(get_db)]
-):
+) -> AgentOut:
     agent = (await db.execute(select(Agent).where(Agent.id == agent_id))).scalar_one_or_none()
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -66,11 +66,11 @@ async def update_agent(
     agent.llm_model = req.llm_model
     await db.commit()
     await db.refresh(agent)
-    return agent
+    return AgentOut.from_agent(agent)
 
 
 @router.delete("/v1/agents/{agent_id}", status_code=204)
-async def delete_agent(agent_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def delete_agent(agent_id: str, db: Annotated[AsyncSession, Depends(get_db)]) -> None:
     agent = (await db.execute(select(Agent).where(Agent.id == agent_id))).scalar_one_or_none()
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -82,7 +82,9 @@ async def delete_agent(agent_id: str, db: Annotated[AsyncSession, Depends(get_db
 
 
 @router.post("/v1/learners", response_model=LearnerOut, status_code=201)
-async def create_learner(req: LearnerCreate, db: Annotated[AsyncSession, Depends(get_db)]):
+async def create_learner(
+    req: LearnerCreate, db: Annotated[AsyncSession, Depends(get_db)]
+) -> LearnerOut:
     learner = Learner(
         id=str(uuid.uuid4()), agent_id=req.agent_id, name=req.name, preferences=req.preferences
     )
@@ -93,7 +95,7 @@ async def create_learner(req: LearnerCreate, db: Annotated[AsyncSession, Depends
 
 
 @router.get("/v1/learners/{learner_id}", response_model=LearnerOut)
-async def get_learner(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_learner(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]) -> LearnerOut:
     learner = (
         await db.execute(select(Learner).where(Learner.id == learner_id))
     ).scalar_one_or_none()

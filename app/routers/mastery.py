@@ -1,6 +1,7 @@
 """Mastery and knowledge graph router."""
 
 from typing import Annotated
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -15,13 +16,17 @@ from app.models import ErrorPattern
 from app.models import Learner
 from app.models import Mastery
 from app.schemas import CategoryProgress
+from app.schemas import ConceptCreate
+from app.schemas import ConceptOut
 from app.schemas import MasteryOut
 
 router = APIRouter()
 
 
 @router.get("/v1/mastery/{learner_id}", response_model=list[MasteryOut])
-async def get_mastery(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_mastery(
+    learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[MasteryOut]:
     """Get the learner's mastery state across all concepts."""
     stmt = (
         select(Mastery, Concept)
@@ -45,7 +50,9 @@ async def get_mastery(learner_id: str, db: Annotated[AsyncSession, Depends(get_d
 
 
 @router.get("/v1/mastery/{learner_id}/categories", response_model=list[CategoryProgress])
-async def get_category_progress(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_category_progress(
+    learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[CategoryProgress]:
     """Get progress grouped by category."""
     stmt = (
         select(Mastery, Concept)
@@ -83,7 +90,9 @@ async def get_category_progress(learner_id: str, db: Annotated[AsyncSession, Dep
 
 
 @router.get("/v1/mastery/{learner_id}/graph")
-async def get_mastery_graph(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_mastery_graph(
+    learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]
+) -> dict[str, Any]:
     """Get the knowledge graph with mastery overlay."""
     learner = (
         await db.execute(select(Learner).where(Learner.id == learner_id))
@@ -129,7 +138,9 @@ async def get_mastery_graph(learner_id: str, db: Annotated[AsyncSession, Depends
 
 
 @router.get("/v1/mastery/{learner_id}/errors", response_model=list[dict])
-async def get_error_patterns(learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_error_patterns(
+    learner_id: str, db: Annotated[AsyncSession, Depends(get_db)]
+) -> list[dict[str, Any]]:
     """Get recurring error patterns."""
     stmt = (
         select(ErrorPattern, Concept)
@@ -152,15 +163,11 @@ async def get_error_patterns(learner_id: str, db: Annotated[AsyncSession, Depend
 # ─── Concept management ───
 
 
-@router.post("/v1/concepts")
+@router.post("/v1/concepts", response_model=ConceptOut, status_code=201)
 async def add_concept(
+    req: ConceptCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    agent_id: str,
-    name: str,
-    category: str = "general",
-    description: str = "",
-    difficulty: float = 0.5,
-):
+) -> ConceptOut:
     """Manually add a concept to an agent's knowledge graph."""
     import uuid
 
@@ -168,12 +175,13 @@ async def add_concept(
 
     concept = Concept(
         id=str(uuid.uuid4()),
-        agent_id=agent_id,
-        name=name,
-        category=category,
-        description=description,
-        difficulty=difficulty,
+        agent_id=req.agent_id,
+        name=req.name,
+        category=req.category,
+        description=req.description,
+        difficulty=req.difficulty,
     )
     db.add(concept)
     await db.commit()
-    return {"id": concept.id, "name": concept.name}
+    await db.refresh(concept)
+    return concept
