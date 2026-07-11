@@ -20,7 +20,8 @@ docker compose up -d
 ```
 
 - **API**: `http://localhost:8000` · **Docs**: `http://localhost:8000/docs`
-- Includes Postgres+pgvector, API server, background worker, and Ollama.
+- **Web UI**: `http://localhost:3000` (agent management, chat, mastery dashboard)
+- Includes Postgres+pgvector, API server, background worker, channel adapters, and Ollama.
 
 ## Create an Agent
 
@@ -66,9 +67,10 @@ flowchart TD
 ```mermaid
 graph TB
     subgraph Frontends["Any Frontend"]
-        Web[Web UI]
+        Web["Web UI<br/>(Next.js 15)"]
         IRC[IRC Bot]
         TG[Telegram Bot]
+        DC[Discord Bot]
         CLI[CLI / curl]
     end
 
@@ -88,6 +90,7 @@ graph TB
         end
 
         WORKER["Background Worker<br/>Heartbeat scheduler<br/>→ outbound queue"]
+        CHAN["Channel Manager<br/>IRC · Telegram · Discord<br/>Access control + routing"]
         TOOLS["Tools<br/>web_search · browse_url<br/>wikipedia · arxiv"]
         LLM["LLM Router<br/>Ollama · vLLM · OpenAI<br/>Any OpenAI-compatible"]
     end
@@ -105,6 +108,7 @@ graph TB
     MP --> LLM
     WORKER --> FSRS
     WORKER --> BKT
+    CHAN --> API
     KG --> PG
     BKT --> PG
     FSRS --> PG
@@ -123,16 +127,23 @@ graph LR
         DB[("db<br/>pgvector/pgvector:pg16<br/>:5432")]
         API2["api<br/>FastAPI + uvicorn<br/>:8000"]
         WRK["worker<br/>Heartbeat loop"]
+        CHN["channels<br/>IRC · TG · Discord<br/>adapters"]
+        WEB["web<br/>Next.js 15<br/>:3000"]
         OLL["ollama<br/>LLM inference<br/>:11434"]
     end
 
     API2 --> DB
     WRK --> DB
+    CHN --> API2
+    CHN --> DB
+    WEB --> API2
     API2 --> OLL
 
     style DB fill:#336791,stroke:none,color:#fff
     style API2 fill:#009688,stroke:none,color:#fff
     style WRK fill:#FF9800,stroke:none,color:#fff
+    style CHN fill:#9C27B0,stroke:none,color:#fff
+    style WEB fill:#61DAFB,stroke:none,color:#000
     style OLL fill:#4A154B,stroke:none,color:#fff
 ```
 
@@ -141,12 +152,14 @@ graph LR
 | Layer | Choice |
 |-------|--------|
 | Backend | FastAPI (Python 3.11+) |
+| Frontend | Next.js 15 (React, TypeScript) |
 | Database | PostgreSQL + pgvector |
 | Spaced Repetition | FSRS (py-fsrs) |
 | Knowledge Tracing | BKT (custom) |
 | Migrations | Alembic |
-| LLM | Any OpenAI-compatible (Ollama default) |
+| LLM | Any OpenAI-compatible (Ollama default, Groq for demo) |
 | Tools | web_search, browse_url, wikipedia, arxiv |
+| Channels | IRC, Telegram, Discord adapters with access control |
 
 ## API Endpoints
 
@@ -158,9 +171,16 @@ graph LR
 | `/v1/learners` | POST | Create learner |
 | `/v1/mastery/{id}` | GET | Knowledge state |
 | `/v1/mastery/{id}/categories` | GET | Progress by category |
-| `/v1/mastery/{id}/graph` | GET | Knowledge graph |
+| `/v1/mastery/{id}/graph` | GET | Knowledge graph (nodes + edges) |
+| `/v1/mastery/{id}/errors` | GET | Error patterns by concept |
+| `/v1/concepts` | POST | Add concept to knowledge graph |
 | `/v1/reviews/{id}` | GET | Due FSRS reviews |
+| `/v1/reviews/{id}/all` | GET | All review items |
+| `/v1/reviews/{id}/answer` | POST | Submit review answer (rating 1-4) |
 | `/v1/outbound` | GET | Outbound messages (channel adapters poll) |
+| `/v1/outbound/{id}/sent` | POST | Mark outbound message as sent |
+| `/` | GET | Health check |
+| `/health` | GET | Service health |
 
 ## Testing
 
