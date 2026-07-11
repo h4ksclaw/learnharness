@@ -174,6 +174,7 @@ class OutboundMessageOut(BaseModel):
     learner_id: str | None
     channel: str
     message: str
+    extra: dict[str, Any] = Field(default_factory=dict)
     sent: bool
     created_at: datetime
 

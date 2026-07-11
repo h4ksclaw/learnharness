@@ -220,13 +220,13 @@ class LLMRouter:
             "latency_ms": latency_ms,
         }
 
-    async def embed(self, text: str, model: str | None = None) -> list[float]:
+    async def embed(self, text: str, model: str | None = None) -> list[float] | None:
         """Generate an embedding vector for text.
 
         Uses the OpenAI-compatible embeddings endpoint.
         Works with Ollama, OpenAI, vLLM, etc.
 
-        Returns a list of floats (dimension depends on model).
+        Returns a list of floats, or None if embeddings are unavailable.
         """
         embed_model = model or "default"
         try:
@@ -236,9 +236,7 @@ class LLMRouter:
             )
             return response.data[0].embedding
         except Exception:
-            # If embeddings endpoint not available, return empty list
-            # (concept still works, just without semantic search)
-            return []
+            return None
 
 
 # Singleton

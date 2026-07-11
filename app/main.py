@@ -17,22 +17,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import Base
 from app.db import engine
+from app.models import register_all_models
 
-# Import all models so they register with metadata
-from app.models import Agent  # noqa: F401
-from app.models import Concept  # noqa: F401
-from app.models import ConceptEdge  # noqa: F401
-from app.models import ErrorPattern  # noqa: F401
-from app.models import Interaction  # noqa: F401
-from app.models import Learner  # noqa: F401
-from app.models import Mastery  # noqa: F401
-from app.models import OutboundMessage  # noqa: F401
-from app.models import ReviewItem  # noqa: F401
-from app.routers import agents
-from app.routers import chat
-from app.routers import heartbeat
-from app.routers import mastery
-from app.routers import reviews
+register_all_models()
+from app.routers import agents  # noqa: E402
+from app.routers import chat  # noqa: E402
+from app.routers import heartbeat  # noqa: E402
+from app.routers import mastery  # noqa: E402
+from app.routers import reviews  # noqa: E402
 
 
 @asynccontextmanager

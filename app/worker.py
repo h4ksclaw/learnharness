@@ -67,7 +67,7 @@ async def check_heartbeat(agent: Agent) -> list[OutboundMessage]:
                             f"review{'s' if len(due_reviews) != 1 else ''} due"
                             f" ({', '.join(concept_names)}). Ready for a quick check?"
                         ),
-                        metadata={
+                        extra={
                             "type": "review_reminder",
                             "review_ids": [r.id for r in due_reviews],
                         },
@@ -88,7 +88,7 @@ async def check_heartbeat(agent: Agent) -> list[OutboundMessage]:
                                 f"Hey {learner.name}! It's been {int(inactive_hours)}h "
                                 f"since we last chatted. Want to continue?"
                             ),
-                            metadata={"type": "inactivity", "inactive_hours": inactive_hours},
+                            extra={"type": "inactivity", "inactive_hours": inactive_hours},
                         )
                     )
                     continue
@@ -113,7 +113,7 @@ async def check_heartbeat(agent: Agent) -> list[OutboundMessage]:
                             f"I noticed you're still working on '{concept.name}' "
                             f"({mastery.p_mastery:.0%} mastery). Want to practice?"
                         ),
-                        metadata={
+                        extra={
                             "type": "weak_spot",
                             "concept_id": concept.id,
                             "mastery": mastery.p_mastery,

@@ -11,17 +11,9 @@ from sqlalchemy import text
 
 from app.db import Base
 from app.db import engine
+from app.models import register_all_models
 
-# Import all models so they register with Base.metadata
-from app.models import Agent  # noqa: F401
-from app.models import Concept  # noqa: F401
-from app.models import ConceptEdge  # noqa: F401
-from app.models import ErrorPattern  # noqa: F401
-from app.models import Interaction  # noqa: F401
-from app.models import Learner  # noqa: F401
-from app.models import Mastery  # noqa: F401
-from app.models import OutboundMessage  # noqa: F401
-from app.models import ReviewItem  # noqa: F401
+register_all_models()
 
 log = logging.getLogger(__name__)
 

@@ -214,3 +214,21 @@ class OutboundMessage(Base):
     sent: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+def register_all_models() -> None:
+    """Import all models so they register with Base.metadata.
+
+    Call this from alembic/env.py, init_db.py, and app/main.py
+    instead of duplicating the import block in each file.
+    """
+    # Import here to ensure all models are loaded into Base.metadata
+    from app.models import Agent  # noqa: F401
+    from app.models import Concept  # noqa: F401
+    from app.models import ConceptEdge  # noqa: F401
+    from app.models import ErrorPattern  # noqa: F401
+    from app.models import Interaction  # noqa: F401
+    from app.models import Learner  # noqa: F401
+    from app.models import Mastery  # noqa: F401
+    from app.models import OutboundMessage  # noqa: F401
+    from app.models import ReviewItem  # noqa: F401
