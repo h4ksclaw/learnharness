@@ -6,7 +6,7 @@
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined" ? "http://localhost:8000" : "http://api:8000");
+  (typeof window !== "undefined" ? "/api" : "http://api:8000");
 
 export interface Agent {
   id: string;

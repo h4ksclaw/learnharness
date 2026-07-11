@@ -3,10 +3,10 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-COPY web/package*.json ./
+COPY package*.json ./
 RUN npm ci
 
-COPY web/ .
+COPY . .
 RUN NEXT_PUBLIC_API_URL=/api npm run build
 
 # --- Runtime stage ---

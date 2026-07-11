@@ -8,6 +8,7 @@ services:
       POSTGRES_PASSWORD: lh_dev
     volumes:
       - lh_pgdata:/var/lib/postgresql/data
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lh -d learnharness"]
       interval: 5s
@@ -63,8 +64,8 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: web/Dockerfile
+      context: web/
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       - api
@@ -88,8 +89,9 @@ services:
 
   ollama:
     # Only needed for local LLM inference.
-    # If using a cloud API (z.ai, OpenAI, Groq, etc.), this container
-    # is unused — just set LLM_BASE_URL in .env and it stays idle.
+    # If using a cloud API (z.ai, OpenAI, Groq, etc.), skip this:
+    #   docker compose up -d  (without --profile local-llm)
+    profiles: ["local-llm"]
     image: ollama/ollama:latest
     restart: unless-stopped
     volumes:

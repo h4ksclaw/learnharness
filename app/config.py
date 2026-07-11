@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # LLM (OpenAI-compatible — works with Ollama, vLLM, OpenAI, etc.)
     llm_base_url: str = "http://ollama:11434/v1"
-    llm_model: str = "qwen2.5:7b"
+    llm_model: str = "qwen2.5:3b"
     llm_api_key: str = "not-needed"
     embedding_model: str = "nomic-embed-text"
 

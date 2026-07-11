@@ -1,13 +1,23 @@
 """LLM Router — routes to any OpenAI-compatible endpoint.
 
 Works with: Ollama, vLLM, LM Studio, OpenAI, DeepSeek, Gemini (via proxy),
-OpenRouter, any OpenAI-compatible API.
+OpenRouter, z.ai (GLM), Groq, any OpenAI-compatible API.
+
+Provider detection:
+    The router inspects ``LLM_BASE_URL`` to determine the provider and adjusts
+    its behaviour accordingly:
+    - z.ai / BigModel: ``response_format`` is sent only if the model supports
+      JSON mode; otherwise the router falls back to text + regex extraction.
+    - Ollama: ``response_format`` and ``max_tokens`` are always sent (Ollama
+      ignores unknown fields gracefully).
+    - OpenAI / Groq / OpenRouter: full OpenAI API surface is used.
 
 Supports:
 - Plain completions (httpx)
-- JSON mode completions
-- Structured output via `instructor` (Pydantic models with auto-retry)
+- JSON mode completions (with provider-aware fallback)
+- Structured output via ``instructor`` (Pydantic models with auto-retry)
 - Embedding generation
+- Tool-calling (with provider-aware fallback)
 """
 
 import json
@@ -27,6 +37,74 @@ from app.config import settings
 T = TypeVar("T", bound=BaseModel)
 
 
+# ─── Provider detection ────────────────────────────────────────────
+
+
+def _detect_provider(base_url: str) -> str:
+    """Return a provider tag from the base URL."""
+    url = base_url.lower()
+    if "z.ai" in url or "bigmodel" in url:
+        return "zai"
+    if "groq.com" in url:
+        return "groq"
+    if "openrouter.ai" in url:
+        return "openrouter"
+    if "deepseek.com" in url:
+        return "deepseek"
+    if "generativelanguage.googleapis.com" in url:
+        return "gemini"
+    if "ollama" in url or "11434" in url:
+        return "ollama"
+    if "api.openai.com" in url:
+        return "openai"
+    return "generic"
+
+
+# Models known to support ``response_format: {"type": "json_object"}``.
+# For providers like z.ai where support varies by model, we list the ones
+# that are confirmed to work.  When a model is not in this set the router
+# skips JSON mode and falls back to text extraction.
+_ZAI_JSON_MODE_PREFIXES: tuple[str, ...] = (
+    "glm-4",
+    "glm-5",
+)
+
+_ZAI_JSON_MODE_EXCLUDED: frozenset[str] = frozenset(
+    {
+        # GLM-4.5-air and earlier low-tier models may not support JSON mode
+        "glm-4.5-air",
+    }
+)
+
+
+def _supports_json_mode(provider: str, model: str) -> bool:
+    """Check if the provider+model combo supports ``response_format``."""
+    if provider in ("ollama", "openai", "groq", "openrouter", "deepseek"):
+        return True
+    if provider == "zai":
+        m = model.lower()
+        if m in _ZAI_JSON_MODE_EXCLUDED:
+            return False
+        return any(m.startswith(p) for p in _ZAI_JSON_MODE_PREFIXES)
+    # Unknown provider — try it; the fallback handles rejection
+    return True
+
+
+def _supports_tools(provider: str, model: str) -> bool:
+    """Check if the provider+model combo supports tool/function calling."""
+    if provider == "ollama":
+        # Ollama supports tools for most models
+        return True
+    if provider == "zai":
+        m = model.lower()
+        # GLM-4.5+ supports function calling; older models may not
+        return any(m.startswith(p) for p in ("glm-4", "glm-5"))
+    return True
+
+
+# ─── LLMRouter ─────────────────────────────────────────────────────
+
+
 class LLMRouter:
     """Thin wrapper around OpenAI-compatible chat completions."""
 
@@ -39,6 +117,7 @@ class LLMRouter:
         self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self.api_key = api_key or settings.llm_api_key
         self.default_model = default_model or settings.llm_model
+        self.provider = _detect_provider(self.base_url)
 
         # OpenAI client for instructor and embeddings
         self._client = AsyncOpenAI(
@@ -47,6 +126,17 @@ class LLMRouter:
         )
         # instructor-wrapped client for structured output
         self._structured = instructor.from_openai(self._client)
+
+    # ─── Headers ────────────────────────────────────────────────────
+
+    def _headers(self) -> dict[str, str]:
+        """Build auth headers for httpx calls."""
+        headers = {"Content-Type": "application/json"}
+        if self.api_key and self.api_key != "not-needed":
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    # ─── Plain completions ──────────────────────────────────────────
 
     async def complete(
         self,
@@ -62,9 +152,10 @@ class LLMRouter:
             {"content": str, "model": str, "usage": {...}, "latency_ms": int}
         """
         model = model or self.default_model
-        headers = {"Content-Type": "application/json"}
-        if self.api_key and self.api_key != "not-needed":
-            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        # Provider-aware: skip response_format if the model doesn't support it
+        if response_format and not _supports_json_mode(self.provider, model):
+            response_format = None
 
         payload: dict[str, Any] = {
             "model": model,
@@ -81,7 +172,7 @@ class LLMRouter:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 json=payload,
-                headers=headers,
+                headers=self._headers(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -97,6 +188,8 @@ class LLMRouter:
             "latency_ms": latency_ms,
         }
 
+    # ─── JSON completions ───────────────────────────────────────────
+
     async def complete_json(
         self,
         messages: list[dict[str, str]],
@@ -105,14 +198,18 @@ class LLMRouter:
     ) -> dict[str, Any]:
         """Call the LLM with JSON mode and parse the response.
 
-        Falls back to extracting JSON from text if response_format isn't supported.
+        Falls back to extracting JSON from text if response_format isn't
+        supported or the provider rejects it.
         """
+        model = model or self.default_model
+        use_json_mode = _supports_json_mode(self.provider, model)
+
         try:
             result = await self.complete(
                 messages,
                 model=model,
                 temperature=temperature,
-                response_format={"type": "json_object"},
+                response_format={"type": "json_object"} if use_json_mode else None,
             )
             parsed: dict[str, Any] = json.loads(result["content"])
             return parsed
@@ -133,6 +230,8 @@ class LLMRouter:
                 raise ValueError(
                     f"Could not parse JSON from LLM response: {content[:200]}"
                 ) from None
+
+    # ─── Structured output (instructor) ─────────────────────────────
 
     async def complete_structured(
         self,
@@ -160,6 +259,8 @@ class LLMRouter:
             data = await self.complete_json(messages, model=model, temperature=temperature)
             return response_model.model_validate(data)
 
+    # ─── Tool-calling ───────────────────────────────────────────────
+
     async def complete_with_tools(
         self,
         messages: list[dict],
@@ -173,7 +274,7 @@ class LLMRouter:
 
         Handles the tool-call loop: sends the request, detects tool_calls in the
         response, and returns them. The caller is responsible for executing the
-        tools and re-calling with the results appended to messages.
+        tools and re-calling with the results appended to the messages.
 
         Args:
             messages: Chat messages including any prior tool results.
@@ -187,16 +288,14 @@ class LLMRouter:
             dict with content, tool_calls, model, usage, latency_ms
         """
         model = model or self.default_model
-        headers = {"Content-Type": "application/json"}
-        if self.api_key and self.api_key != "not-needed":
-            headers["Authorization"] = f"Bearer {self.api_key}"
 
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "tools": tools,
         }
+        if _supports_tools(self.provider, model):
+            payload["tools"] = tools
         if max_tokens:
             payload["max_tokens"] = max_tokens
 
@@ -205,7 +304,7 @@ class LLMRouter:
             resp = await client.post(
                 f"{self.base_url}/chat/completions",
                 json=payload,
-                headers=headers,
+                headers=self._headers(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -221,9 +320,11 @@ class LLMRouter:
             "latency_ms": latency_ms,
         }
 
+    # ─── Embeddings ─────────────────────────────────────────────────
+
     async def embed(self, text: str, model: str | None = None) -> list[float] | None:
         """Generate an embedding vector for text."""
-        embed_model = model or "default"
+        embed_model = model or settings.embedding_model
         try:
             response = await self._client.embeddings.create(
                 input=text,
