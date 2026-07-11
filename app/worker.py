@@ -180,8 +180,8 @@ async def run_worker():
                         )
                         await db.commit()
 
-        except Exception as e:
-            log.error("Worker error: %s", e, exc_info=True)
+        except Exception:
+            log.exception("Worker cycle failed — will retry in 60s")
 
         # Sleep between checks (check every 60s, per-agent interval is checked above)
         await asyncio.sleep(60)

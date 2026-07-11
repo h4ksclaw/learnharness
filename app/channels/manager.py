@@ -10,7 +10,6 @@ Also available as a Docker service in compose.yaml.
 import asyncio
 import logging
 import os
-import sys
 
 import httpx
 from sqlalchemy import select
@@ -98,19 +97,22 @@ async def main():
     log.info("Channel manager starting...")
 
     # Wait for API to be ready
+    api_ready = False
     for i in range(30):
         try:
             async with httpx.AsyncClient(timeout=5) as client:
                 resp = await client.get(f"{API_BASE}/v1/agents")
                 if resp.is_success:
+                    api_ready = True
                     break
         except Exception:
-            pass
+            log.debug("API not ready, retrying...")
         log.info("Waiting for API... (%d/30)", i + 1)
         await asyncio.sleep(2)
-    else:
-        log.error("API not available, exiting")
-        sys.exit(1)
+
+    if not api_ready:
+        log.error("API not available after 30 retries, exiting")
+        raise RuntimeError("API not available")
 
     while True:
         try:

@@ -241,7 +241,6 @@ class BaseChannelAdapter(ABC):
 
         payload = {
             "agent_id": self.config.agent_id,
-            "learner_id": learner_id,
             "session_id": session_id,
             "messages": [{"role": "user", "content": msg.text}],
         }
@@ -252,7 +251,10 @@ class BaseChannelAdapter(ABC):
                 learner_id = await self._ensure_learner(msg.sender_name)
                 if learner_id:
                     self.learner_map[user_key] = learner_id
-                    payload["learner_id"] = learner_id
+
+            # Include learner_id if we have one (avoids dict key overwrite smell)
+            if learner_id:
+                payload["learner_id"] = learner_id
 
             async with httpx.AsyncClient(timeout=120) as client:
                 resp = await client.post(
@@ -313,6 +315,6 @@ class BaseChannelAdapter(ABC):
                         await client.post(f"{self.config.api_base}/v1/outbound/{msg['id']}/sent")
 
             except Exception:
-                log.debug("Outbound poll error", exc_info=True)
+                log.warning("Outbound poll failed for %s", self.platform_name, exc_info=True)
 
             await asyncio.sleep(30)

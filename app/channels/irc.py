@@ -154,6 +154,7 @@ class IRCAdapter(BaseChannelAdapter):
                     asyncio.create_task(self.handle_inbound(inbound))
 
                 except (ValueError, IndexError):
+                    log.debug("IRC: malformed message, skipping")
                     continue
 
             except Exception:
@@ -169,7 +170,7 @@ class IRCAdapter(BaseChannelAdapter):
                     self._send_raw(f"JOIN {ch}")
                 await self.listen()
             except Exception:
-                log.exception("IRC reconnect failed")
+                log.exception("IRC reconnect failed — will retry on next cycle")
 
     async def join_channels(self) -> None:
         await asyncio.sleep(2)

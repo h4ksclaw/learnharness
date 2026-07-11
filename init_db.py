@@ -5,15 +5,25 @@ Used as the startup command before running the API or worker.
 """
 
 import asyncio
+import logging
 
 from sqlalchemy import text
 
-from app.db import Base, engine
+from app.db import Base
+from app.db import engine
+
 # Import all models so they register with Base.metadata
-from app.models import (  # noqa: F401
-    Agent, Learner, Concept, ConceptEdge, Mastery, ReviewItem,
-    Interaction, ErrorPattern, OutboundMessage,
-)
+from app.models import Agent  # noqa: F401
+from app.models import Concept  # noqa: F401
+from app.models import ConceptEdge  # noqa: F401
+from app.models import ErrorPattern  # noqa: F401
+from app.models import Interaction  # noqa: F401
+from app.models import Learner  # noqa: F401
+from app.models import Mastery  # noqa: F401
+from app.models import OutboundMessage  # noqa: F401
+from app.models import ReviewItem  # noqa: F401
+
+log = logging.getLogger(__name__)
 
 
 async def init():
@@ -21,7 +31,7 @@ async def init():
         try:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         except Exception:
-            pass  # Already exists — ignore
+            log.warning("Could not create pgvector extension (may already exist)")
         await conn.run_sync(Base.metadata.create_all)
     await engine.dispose()
     print("Database initialized: pgvector extension + all tables created")

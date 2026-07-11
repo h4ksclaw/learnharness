@@ -142,6 +142,7 @@ class TelegramAdapter(BaseChannelAdapter):
                     asyncio.create_task(self.handle_inbound(inbound))
 
             except httpx.ReadTimeout:
+                log.debug("Telegram: long-poll timeout, continuing")
                 continue
             except Exception:
                 log.exception("Telegram polling error")
