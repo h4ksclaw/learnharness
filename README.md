@@ -9,6 +9,7 @@
 **Prebuilt images:**
 - `docker pull ghcr.io/h4ksclaw/learnharness/api:latest`
 - `docker pull ghcr.io/h4ksclaw/learnharness/worker:latest`
+- `docker pull ghcr.io/h4ksclaw/learnharness/channels:latest`
 
 ## Quick Start
 
@@ -184,11 +185,15 @@ python tests/test_learning_simulation.py
 | `test_fsrs_time.py` | 20 | Time-simulated FSRS: stability growth, lapse recovery, week-of-learning, rating effects |
 | `test_bkt_comprehensive.py` | 19 | BKT convergence, dynamics, soft inference, recovery, boundary conditions |
 | `test_schemas.py` | 19 | Pydantic validation: agent, chat, corrections, mastery, reviews |
+| `test_channels.py` | 20 | Channel access control, allowlist/blocklist, DM permissions, require_mention |
 | `test_models.py` | 16 | ORM models: creation, relationships, constraints |
-| `test_knowledge_tracing.py` | 5 | Basic BKT correctness |
-| `test_fsrs.py` | 4 | Basic FSRS mechanics |
+| `test_schemas_extended.py` | 7 | ConceptCreate, OutboundMessageOut extra field, AgentOut token masking |
 | `test_config.py` | 6 | Settings, defaults, DB engine |
-| `test_tools_system.py` | 11 | Tool registry, OpenAI schemas, execution |
+| `test_knowledge_tracing.py` | 5 | BKT correctness: update, ceiling, floor, inference |
+| `test_bkt.py` | 9 | KnowledgeTracer: mastery updates, convergence, custom parameters |
+| `test_tools_registry.py` | 4 | Tool definitions, OpenAI schema generation, execution |
+| `test_fsrs.py` | 4 | Basic FSRS mechanics |
+| `test_tools_system.py` | 11 | Tool registry, OpenAI schemas, execution (network required) |
 | `test_tools.py` | 3 | Live tool tests (network required) |
 | `test_learning_simulation.py` | 6 | **E2E**: 8-turn conversation with live LLM |
 
@@ -220,7 +225,7 @@ alembic revision --autogenerate -m "description of change"
 | **ruff** | Linting (E, F, I, N, W, UP, B, SIM, C4) + formatting. One import per line. |
 | **mypy** | Type checking with `warn_return_any` |
 | **pre-commit** | Auto-runs ruff, ruff-format, mypy, whitespace checks on commit |
-| **pytest** | 99 unit tests + 6 e2e checks |
+| **pytest** | 139 unit tests + e2e simulation (all passing) |
 | **GitHub Actions** | CI: lint, test (Python 3.11+3.12), mypy, docker, GHCR publish |
 
 ## Project Status
@@ -234,12 +239,17 @@ alembic revision --autogenerate -m "description of change"
 - [x] Background worker with proactive scheduling
 - [x] Outbound message queue for multi-channel delivery
 - [x] Alembic migrations
-- [x] 99 unit tests + e2e simulation (all passing)
-- [x] Docker Compose (db + api + worker + ollama)
+- [x] 139 unit tests + e2e simulation (all passing)
+- [x] Docker Compose (db + api + worker + channels + ollama)
 - [x] GitHub Actions CI (lint + test + mypy + docker + GHCR)
 - [x] ruff + mypy + pre-commit
-- [ ] Web UI
-- [ ] Channel adapters (IRC, Telegram)
+- [x] Web UI (Next.js 15 — agent management, chat, mastery dashboard, settings)
+- [x] Channel adapters (IRC, Telegram, Discord) with access control
+- [x] One-command demo deployment (Groq + Docker, no GPU needed)
+
+## Code Quality
+
+![Scorecard](scorecard.png)
 
 ## License
 
