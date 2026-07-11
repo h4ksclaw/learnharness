@@ -1,5 +1,7 @@
 """Tests for the schemas (Pydantic models) — request/response validation."""
 
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
 
@@ -69,7 +71,7 @@ class TestAgentOutMasking:
     """Test AgentOut.from_agent() masks sensitive fields."""
 
     def test_from_agent_masks_tokens(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from app.models import Agent
 
@@ -84,7 +86,7 @@ class TestAgentOutMasking:
             },
             heartbeat_interval=3600,
             active=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         out = AgentOut.from_agent(agent)
         channels = out.channels
@@ -94,7 +96,7 @@ class TestAgentOutMasking:
             assert channels["discord"].get("token") != "MTIzNDU2"
 
     def test_from_agent_preserves_non_sensitive(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from app.models import Agent
 
@@ -108,7 +110,7 @@ class TestAgentOutMasking:
             },
             heartbeat_interval=3600,
             active=True,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         out = AgentOut.from_agent(agent)
         assert out.channels["irc"]["host"] == "localhost"

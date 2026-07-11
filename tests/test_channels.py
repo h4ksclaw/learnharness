@@ -1,8 +1,6 @@
 """Tests for channel adapters — base classes, access control, and IRC parsing."""
 
-import asyncio
 from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
@@ -34,9 +32,7 @@ class TestAccessControl:
         assert ac.is_user_allowed("99999", "someone") is False
 
     def test_blocklist_overrides_allowlist(self):
-        ac = AccessControl.from_config(
-            {"allowed_users": ["mattf"], "blocked_users": ["mattf"]}
-        )
+        ac = AccessControl.from_config({"allowed_users": ["mattf"], "blocked_users": ["mattf"]})
         assert ac.is_user_allowed("1", "mattf") is False
 
     def test_blocklist_alone(self):

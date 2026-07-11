@@ -46,3 +46,4 @@ docker-compose.override.yml
 # Hermes
 .hermes/
 .desloppify/
+.claude/

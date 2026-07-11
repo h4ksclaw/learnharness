@@ -1,12 +1,10 @@
 """Tests for the tools system — tool registry, schema generation, execution."""
 
-import json
-
 import pytest
 
+from app.tools import TOOL_DEFINITIONS
 from app.tools import execute_tool
 from app.tools import get_openai_tool_schemas
-from app.tools import TOOL_DEFINITIONS
 
 
 class TestToolRegistry:

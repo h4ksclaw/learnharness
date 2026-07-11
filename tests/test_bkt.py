@@ -1,7 +1,5 @@
 """Tests for the Bayesian Knowledge Tracing engine."""
 
-import pytest
-
 from app.engine.knowledge_tracing import KnowledgeTracer
 
 

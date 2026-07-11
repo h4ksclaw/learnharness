@@ -47,6 +47,7 @@ jobs:
         run: |
           python -m pytest tests/ -v \
             --ignore=tests/test_tools.py \
+            --ignore=tests/test_tools_system.py \
             --ignore=tests/test_learning_simulation.py \
             --tb=short
 

@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        target: [api, worker]
+        target: [api, worker, channels]
 
     steps:
       - uses: actions/checkout@v4
