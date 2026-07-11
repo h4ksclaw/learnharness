@@ -13,6 +13,8 @@ class TestProviderDetection:
     def test_zai_detection(self):
         assert _detect_provider("https://api.z.ai/api/paas/v4") == "zai"
         assert _detect_provider("https://open.bigmodel.cn/api/paas/v4") == "zai"
+        assert _detect_provider("https://api.z.ai/api/coding/paas/v4") == "zai"
+        assert _detect_provider("https://open.bigmodel.cn/api/coding/paas/v4") == "zai"
 
     def test_openai_detection(self):
         assert _detect_provider("https://api.openai.com/v1") == "openai"
