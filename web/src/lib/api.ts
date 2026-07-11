@@ -8,12 +8,32 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== "undefined" ? "/api" : "http://api:8000");
 
+export interface ChannelConfig {
+  [platform: string]: {
+    host?: string;
+    port?: number;
+    nick?: string;
+    channels?: string[];
+    password?: string | null;
+    ssl?: boolean;
+    allowed_users?: string[];
+    blocked_users?: string[];
+    allowed_channels?: number[];
+    allowed_chat_ids?: number[];
+    allow_dms?: boolean;
+    require_mention?: boolean;
+    welcome_message?: string | null;
+    token?: string;
+    [key: string]: unknown;
+  };
+}
+
 export interface Agent {
   id: string;
   name: string;
   master_prompt: string;
   tools: string[];
-  channels: Record<string, unknown>;
+  channels: ChannelConfig;
   heartbeat_interval: number;
   active: boolean;
   created_at: string;
@@ -115,9 +135,9 @@ export const apiClient = {
   // Agents
   listAgents: () => api<Agent[]>("/v1/agents"),
   getAgent: (id: string) => api<Agent>(`/v1/agents/${id}`),
-  createAgent: (data: Partial<Agent>) =>
+  createAgent: (data: Partial<Agent> & Record<string, unknown>) =>
     api<Agent>("/v1/agents", { method: "POST", body: JSON.stringify(data) }),
-  updateAgent: (id: string, data: Partial<Agent>) =>
+  updateAgent: (id: string, data: Partial<Agent> & Record<string, unknown>) =>
     api<Agent>(`/v1/agents/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),

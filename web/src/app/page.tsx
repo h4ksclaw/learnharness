@@ -2,9 +2,40 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiClient, type Agent } from "@/lib/api";
-import { Plus, Trash2, Pencil, Bot, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Bot, X, Hash, MessageCircle, Send } from "lucide-react";
 
 const AVAILABLE_TOOLS = ["web_search", "browse_url", "wikipedia", "arxiv"];
+
+// ─── Channel config types ───
+
+interface IRCConfig {
+  host: string;
+  port: number;
+  nick: string;
+  channels: string;
+  password: string;
+  ssl: boolean;
+  allowed_users: string;
+  require_mention: boolean;
+}
+
+interface DiscordConfig {
+  token: string;
+  allowed_users: string;
+  allowed_channels: string;
+  require_mention: boolean;
+}
+
+interface TelegramConfig {
+  token: string;
+  allowed_users: string;
+  require_mention: boolean;
+  welcome_message: string;
+}
+
+const emptyIRC: IRCConfig = { host: "", port: 6667, nick: "", channels: "", password: "", ssl: false, allowed_users: "", require_mention: true };
+const emptyDiscord: DiscordConfig = { token: "", allowed_users: "", allowed_channels: "", require_mention: true };
+const emptyTelegram: TelegramConfig = { token: "", allowed_users: "", require_mention: false, welcome_message: "" };
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -152,9 +183,31 @@ function AgentForm({
   const [heartbeat, setHeartbeat] = useState(
     agent?.heartbeat_interval ?? 300,
   );
-  const [channels, setChannels] = useState(
-    agent ? JSON.stringify(agent.channels, null, 2) : "{}",
-  );
+  const [ircEnabled, setIrcEnabled] = useState(!!agent?.channels?.irc);
+  const [discordEnabled, setDiscordEnabled] = useState(!!agent?.channels?.discord);
+  const [telegramEnabled, setTelegramEnabled] = useState(!!agent?.channels?.telegram);
+  const [irc, setIrc] = useState<IRCConfig>({
+    ...emptyIRC,
+    ...(agent?.channels?.irc as Partial<IRCConfig> || {}),
+    channels: Array.isArray(agent?.channels?.irc?.channels) ? agent!.channels.irc.channels.join(", ") : "",
+    allowed_users: Array.isArray(agent?.channels?.irc?.allowed_users) ? agent!.channels.irc.allowed_users.join(", ") : "",
+    port: agent?.channels?.irc?.port ?? 6667,
+    ssl: agent?.channels?.irc?.ssl ?? false,
+    require_mention: agent?.channels?.irc?.require_mention ?? true,
+  });
+  const [discord, setDiscord] = useState<DiscordConfig>({
+    ...emptyDiscord,
+    ...(agent?.channels?.discord as Partial<DiscordConfig> || {}),
+    allowed_users: Array.isArray(agent?.channels?.discord?.allowed_users) ? agent!.channels.discord.allowed_users.join(", ") : "",
+    allowed_channels: Array.isArray(agent?.channels?.discord?.allowed_channels) ? agent!.channels.discord.allowed_channels.join(", ") : "",
+    require_mention: agent?.channels?.discord?.require_mention ?? true,
+  });
+  const [telegram, setTelegram] = useState<TelegramConfig>({
+    ...emptyTelegram,
+    ...(agent?.channels?.telegram as Partial<TelegramConfig> || {}),
+    allowed_users: Array.isArray(agent?.channels?.telegram?.allowed_users) ? agent!.channels.telegram.allowed_users.join(", ") : "",
+    require_mention: agent?.channels?.telegram?.require_mention ?? false,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -168,12 +221,40 @@ function AgentForm({
     setSaving(true);
     setError("");
     try {
-      const parsedChannels = JSON.parse(channels || "{}");
+      const channels = {} as Record<string, Record<string, unknown>>;
+      if (ircEnabled && irc.host) {
+        channels.irc = {
+          host: irc.host,
+          port: irc.port,
+          nick: irc.nick,
+          channels: irc.channels.split(",").map((s) => s.trim()).filter(Boolean),
+          password: irc.password || null,
+          ssl: irc.ssl,
+          allowed_users: irc.allowed_users.split(",").map((s) => s.trim()).filter(Boolean),
+          require_mention: irc.require_mention,
+        };
+      }
+      if (discordEnabled && discord.token) {
+        channels.discord = {
+          token: discord.token,
+          allowed_users: discord.allowed_users.split(",").map((s) => s.trim()).filter(Boolean),
+          allowed_channels: discord.allowed_channels.split(",").map((s) => Number(s.trim())).filter((n) => !isNaN(n)),
+          require_mention: discord.require_mention,
+        };
+      }
+      if (telegramEnabled && telegram.token) {
+        channels.telegram = {
+          token: telegram.token,
+          allowed_users: telegram.allowed_users.split(",").map((s) => s.trim()).filter(Boolean),
+          require_mention: telegram.require_mention,
+          welcome_message: telegram.welcome_message || null,
+        };
+      }
       const data = {
         name,
         master_prompt: masterPrompt,
         tools,
-        channels: parsedChannels,
+        channels,
         heartbeat_interval: heartbeat,
       };
       if (agent) {
@@ -262,18 +343,85 @@ function AgentForm({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm text-zinc-400">
-              Channels (JSON)
-            </label>
-            <textarea
-              value={channels}
-              onChange={(e) => setChannels(e.target.value)}
-              rows={3}
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs focus:border-emerald-600 focus:outline-none"
-            />
-            <p className="mt-1 text-xs text-zinc-600">
-              Configure delivery channels (irc, telegram, discord, etc.)
-            </p>
+            <label className="mb-2 block text-sm text-zinc-400">Channels</label>
+            <div className="space-y-3">
+              {/* IRC */}
+              <div className={`rounded-lg border ${ircEnabled ? "border-emerald-800 bg-emerald-950/20" : "border-zinc-800 bg-zinc-950"} p-3`}>
+                <button
+                  type="button"
+                  onClick={() => setIrcEnabled(!ircEnabled)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <Hash className="h-4 w-4 text-zinc-500" />
+                  <span className="text-sm font-medium">IRC</span>
+                  <span className={`ml-auto h-3 w-3 rounded-full ${ircEnabled ? "bg-emerald-500" : "bg-zinc-700"}`} />
+                </button>
+                {ircEnabled && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <input value={irc.host} onChange={(e) => setIrc({ ...irc, host: e.target.value })} placeholder="irc.libera.chat" className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input type="number" value={irc.port} onChange={(e) => setIrc({ ...irc, port: Number(e.target.value) })} placeholder="6667" className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={irc.nick} onChange={(e) => setIrc({ ...irc, nick: e.target.value })} placeholder="BotNick" className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={irc.channels} onChange={(e) => setIrc({ ...irc, channels: e.target.value })} placeholder="#chan1, #chan2" className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={irc.password} onChange={(e) => setIrc({ ...irc, password: e.target.value })} placeholder="password (optional)" type="password" className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={irc.allowed_users} onChange={(e) => setIrc({ ...irc, allowed_users: e.target.value })} placeholder="allowed users (comma)" className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <label className="flex items-center gap-2 text-xs text-zinc-400 col-span-2">
+                      <input type="checkbox" checked={irc.ssl} onChange={(e) => setIrc({ ...irc, ssl: e.target.checked })} className="rounded" />
+                      SSL
+                      <input type="checkbox" checked={irc.require_mention} onChange={(e) => setIrc({ ...irc, require_mention: e.target.checked })} className="rounded ml-4" />
+                      Require mention
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Discord */}
+              <div className={`rounded-lg border ${discordEnabled ? "border-indigo-800 bg-indigo-950/20" : "border-zinc-800 bg-zinc-950"} p-3`}>
+                <button
+                  type="button"
+                  onClick={() => setDiscordEnabled(!discordEnabled)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <MessageCircle className="h-4 w-4 text-zinc-500" />
+                  <span className="text-sm font-medium">Discord</span>
+                  <span className={`ml-auto h-3 w-3 rounded-full ${discordEnabled ? "bg-indigo-500" : "bg-zinc-700"}`} />
+                </button>
+                {discordEnabled && (
+                  <div className="mt-3 space-y-2">
+                    <input value={discord.token} onChange={(e) => setDiscord({ ...discord, token: e.target.value })} placeholder="Bot token" type="password" className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={discord.allowed_users} onChange={(e) => setDiscord({ ...discord, allowed_users: e.target.value })} placeholder="allowed user IDs (comma)" className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={discord.allowed_channels} onChange={(e) => setDiscord({ ...discord, allowed_channels: e.target.value })} placeholder="allowed channel IDs (comma, empty=all)" className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <label className="flex items-center gap-2 text-xs text-zinc-400">
+                      <input type="checkbox" checked={discord.require_mention} onChange={(e) => setDiscord({ ...discord, require_mention: e.target.checked })} className="rounded" />
+                      Require mention
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Telegram */}
+              <div className={`rounded-lg border ${telegramEnabled ? "border-sky-800 bg-sky-950/20" : "border-zinc-800 bg-zinc-950"} p-3`}>
+                <button
+                  type="button"
+                  onClick={() => setTelegramEnabled(!telegramEnabled)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <Send className="h-4 w-4 text-zinc-500" />
+                  <span className="text-sm font-medium">Telegram</span>
+                  <span className={`ml-auto h-3 w-3 rounded-full ${telegramEnabled ? "bg-sky-500" : "bg-zinc-700"}`} />
+                </button>
+                {telegramEnabled && (
+                  <div className="mt-3 space-y-2">
+                    <input value={telegram.token} onChange={(e) => setTelegram({ ...telegram, token: e.target.value })} placeholder="Bot token" type="password" className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={telegram.allowed_users} onChange={(e) => setTelegram({ ...telegram, allowed_users: e.target.value })} placeholder="allowed users @handle (comma)" className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <input value={telegram.welcome_message} onChange={(e) => setTelegram({ ...telegram, welcome_message: e.target.value })} placeholder="welcome message (optional)" className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1.5 text-xs" />
+                    <label className="flex items-center gap-2 text-xs text-zinc-400">
+                      <input type="checkbox" checked={telegram.require_mention} onChange={(e) => setTelegram({ ...telegram, require_mention: e.target.checked })} className="rounded" />
+                      Require mention
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {error && (
