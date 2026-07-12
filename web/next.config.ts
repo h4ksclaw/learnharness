@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  experimental: {
+    proxyTimeout: 120_000, // 2 minutes for LLM responses
+  },
 };
 
 export default nextConfig;

@@ -12,6 +12,8 @@ import {
   TrendingDown,
   Loader2,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Thread {
   id: string;
@@ -32,19 +34,22 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [showNewThread, setShowNewThread] = useState(false);
   const [newThreadTitle, setNewThreadTitle] = useState("");
-  const [newThreadParent, setNewThreadParent] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<{ messageIndex: number; content: string } | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const threadCounter = useRef(0);
 
   useEffect(() => {
-    apiClient.listAgents().then((data) => {
-      setAgents(data);
-      // FIX: don't call setSelectedAgent during render — do it in the effect
-      if (data.length > 0 && !selectedAgent) {
-        setSelectedAgent(data[0].id);
-      }
-    }).catch(() => setAgents([]));
+    apiClient
+      .listAgents()
+      .then((data) => {
+        setAgents(data);
+        if (data.length > 0 && !selectedAgent) {
+          setSelectedAgent(data[0].id);
+        }
+      })
+      .catch(() => setAgents([]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Restore session
   useEffect(() => {
     const saved = localStorage.getItem("lh_session");
@@ -74,6 +79,13 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [threads, activeThread]);
 
+  // Autofocus input when thread changes or page loads
+  useEffect(() => {
+    if (activeThread && !sending) {
+      inputRef.current?.focus();
+    }
+  }, [activeThread, sending]);
+
   const ensureLearner = useCallback(async () => {
     if (learnerId || !selectedAgent) return learnerId;
     try {
@@ -86,7 +98,7 @@ export default function ChatPage() {
   }, [learnerId, selectedAgent]);
 
   const createThread = (title: string, parentId: string | null = null) => {
-    const id = `thread_${Date.now()}`;
+    const id = `thread_${++threadCounter.current}`;
     const thread: Thread = {
       id,
       title,
@@ -99,19 +111,33 @@ export default function ChatPage() {
     setActiveThread(id);
     setShowNewThread(false);
     setNewThreadTitle("");
-    setNewThreadParent(null);
     return id;
   };
 
-  const openNewThreadModal = (parentId: string | null = null) => {
-    setNewThreadParent(parentId);
-    if (parentId) {
-      const parent = threads.find((t) => t.id === parentId);
-      setNewThreadTitle(parent ? `Re: ${parent.title}` : "");
-    } else {
-      setNewThreadTitle("");
-    }
+  const openNewThreadModal = () => {
+    setNewThreadTitle("");
     setShowNewThread(true);
+  };
+
+  const startReply = (messageIndex: number, content: string) => {
+    const parentThread = threads.find((t) => t.id === activeThread);
+    if (!parentThread) return;
+    // Create a subthread branched from this message
+    const snippet = content.slice(0, 40).replace(/\n/g, " ");
+    const id = `thread_${++threadCounter.current}`;
+    const branchMessages: ChatMessage[] = parentThread.messages.slice(0, messageIndex + 1);
+    const thread: Thread = {
+      id,
+      title: `Re: ${snippet}...`,
+      messages: branchMessages,
+      parentId: activeThread,
+      deltas: [],
+      corrections: [],
+    };
+    setThreads((prev) => [...prev, thread]);
+    setActiveThread(id);
+    setReplyTo(null);
+    inputRef.current?.focus();
   };
 
   const sendMessage = async () => {
@@ -173,6 +199,7 @@ export default function ChatPage() {
       );
     }
     setSending(false);
+    inputRef.current?.focus();
   };
 
   const currentThread = threads.find((t) => t.id === activeThread);
@@ -185,7 +212,7 @@ export default function ChatPage() {
         <div className="flex h-14 items-center justify-between px-4">
           <span className="text-sm font-semibold text-[#f7f8f8]">Threads</span>
           <button
-            onClick={() => openNewThreadModal(null)}
+            onClick={openNewThreadModal}
             className="rounded p-1 text-[#8a8f98] hover:bg-white/[0.06] hover:text-[#f7f8f8]"
           >
             <Plus className="h-4 w-4" />
@@ -268,13 +295,15 @@ export default function ChatPage() {
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => openNewThreadModal(currentThread.id)}
-                className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-[#8a8f98] hover:bg-white/[0.06] hover:text-[#f7f8f8]"
-              >
-                <CornerDownRight className="h-3 w-3" />
-                New subthread
-              </button>
+              {currentThread.parentId && (
+                <button
+                  onClick={() => setActiveThread(currentThread.parentId!)}
+                  className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-[#8a8f98] hover:bg-white/[0.06] hover:text-[#f7f8f8]"
+                >
+                  <CornerDownRight className="h-3 w-3 rotate-180" />
+                  Back to parent
+                </button>
+              )}
             </div>
 
             {/* Messages */}
@@ -301,6 +330,8 @@ export default function ChatPage() {
                           ? currentThread.deltas
                           : []
                       }
+                      canReply={!sending}
+                      onReply={() => startReply(i, msg.content)}
                     />
                   ))}
                   {/* Typing indicator */}
@@ -323,6 +354,7 @@ export default function ChatPage() {
             <div className="border-t border-white/[0.05] bg-[#0f1011] p-4">
               <div className="flex items-end gap-2">
                 <textarea
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -338,6 +370,7 @@ export default function ChatPage() {
                   }
                   disabled={!selectedAgent || sending}
                   rows={1}
+                  autoFocus
                   className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-[#08090a] px-4 py-2.5 text-sm text-[#f7f8f8] placeholder-[#62666d] focus:border-[#10b981] focus:outline-none disabled:opacity-50"
                 />
                 <button
@@ -360,7 +393,7 @@ export default function ChatPage() {
               Create a thread to start chatting
             </p>
             <button
-              onClick={() => openNewThreadModal(null)}
+              onClick={openNewThreadModal}
               className="mt-3 flex items-center gap-2 rounded-md bg-[#10b981] px-4 py-2 text-sm font-medium text-white hover:bg-[#34d399]"
             >
               <Plus className="h-4 w-4" />
@@ -381,7 +414,7 @@ export default function ChatPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-3 text-lg font-semibold text-[#f7f8f8]">
-              {newThreadParent ? "New Subthread" : "New Thread"}
+              New Thread
             </h2>
             <input
               value={newThreadTitle}
@@ -389,7 +422,7 @@ export default function ChatPage() {
               placeholder="e.g. German grammar practice"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newThreadTitle.trim()) {
-                  createThread(newThreadTitle, newThreadParent);
+                  createThread(newThreadTitle);
                 }
               }}
               autoFocus
@@ -404,8 +437,7 @@ export default function ChatPage() {
               </button>
               <button
                 onClick={() =>
-                  newThreadTitle.trim() &&
-                  createThread(newThreadTitle, newThreadParent)
+                  newThreadTitle.trim() && createThread(newThreadTitle)
                 }
                 disabled={!newThreadTitle.trim()}
                 className="rounded-md bg-[#10b981] px-4 py-2 text-sm font-medium text-white hover:bg-[#34d399] disabled:opacity-40"
@@ -424,19 +456,28 @@ function MessageBubble({
   message,
   corrections,
   deltas,
+  canReply,
+  onReply,
 }: {
   message: ChatMessage;
   corrections: ChatResponse["corrections"];
   deltas: ChatResponse["mastery_deltas"];
+  canReply: boolean;
+  onReply: () => void;
 }) {
   const isUser = message.role === "user";
   const isError = message.content.startsWith("⚠️");
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[70%] ${isUser ? "items-end" : "items-start"}`}>
+    <div
+      className={`group flex ${isUser ? "justify-end" : "justify-start"}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div className={`max-w-[75%] ${isUser ? "items-end" : "items-start"}`}>
         <div
-          className={`rounded-2xl px-4 py-2.5 text-sm ${
+          className={`relative rounded-2xl px-4 py-2.5 text-sm ${
             isError
               ? "bg-red-900/30 text-red-300"
               : isUser
@@ -444,7 +485,26 @@ function MessageBubble({
                 : "border border-white/[0.08] bg-[#191a1b] text-[#f7f8f8]"
           }`}
         >
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          ) : (
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-pre:rounded-lg prose-pre:bg-[#08090a] prose-code:text-[#10b981] prose-code:before:content-none prose-code:after:content-none prose-a:text-[#10b981] prose-strong:text-[#f7f8f8] prose-blockquote:border-l-[#10b981]">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
+          )}
+
+          {/* Hover reply button */}
+          {!isUser && !isError && canReply && hovered && (
+            <button
+              onClick={onReply}
+              className="absolute -right-2 -top-3 flex items-center gap-1 rounded-full border border-white/[0.08] bg-[#191a1b] px-2 py-1 text-xs text-[#8a8f98] shadow-lg hover:text-[#f7f8f8]"
+            >
+              <CornerDownRight className="h-3 w-3" />
+              Branch
+            </button>
+          )}
         </div>
 
         {/* Corrections */}
@@ -460,14 +520,16 @@ function MessageBubble({
                     c.severity === "error" ? "text-red-400" : "text-amber-400"
                   }`}
                 />
-                <div>
-                  <span className="text-[#62666d] line-through">
-                    {c.original}
-                  </span>
-                  <span className="mx-1 text-[#62666d]">→</span>
-                  <span className="text-[#10b981]">{c.corrected}</span>
+                <div className="space-y-0.5">
+                  <div>
+                    <span className="text-[#62666d] line-through">
+                      {c.original}
+                    </span>
+                    <span className="mx-1 text-[#62666d]">→</span>
+                    <span className="font-medium text-[#10b981]">{c.corrected}</span>
+                  </div>
                   {c.rule && (
-                    <span className="block text-[#8a8f98]">{c.rule}</span>
+                    <p className="text-[#8a8f98]">{c.rule}</p>
                   )}
                 </div>
               </div>
