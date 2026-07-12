@@ -100,7 +100,7 @@ class Concept(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(300))
-    category: Mapped[str] = mapped_column(String(100), default="general")
+    category: Mapped[str] = mapped_column(Text, default="general")
     description: Mapped[str] = mapped_column(Text, default="")
     difficulty: Mapped[float] = mapped_column(Float, default=0.5)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
@@ -209,7 +209,7 @@ class ErrorPattern(Base):
     concept_id: Mapped[str] = mapped_column(
         ForeignKey("concepts.id", ondelete="CASCADE"), index=True
     )
-    error_type: Mapped[str] = mapped_column(String(100))
+    error_type: Mapped[str] = mapped_column(Text)
     count: Mapped[int] = mapped_column(Integer, default=1)
     examples: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
