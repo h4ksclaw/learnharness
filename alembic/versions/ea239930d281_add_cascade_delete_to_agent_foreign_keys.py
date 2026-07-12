@@ -10,7 +10,6 @@ from collections.abc import Sequence
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = "ea239930d281"
 down_revision: str | Sequence[str] | None = "4a16109d2f85"
@@ -23,8 +22,12 @@ def _cascade(op, table, column, ref_table, ref_column="id"):
     constraint = f"{table}_{column}_fkey"
     op.drop_constraint(constraint, table, type_="foreignkey")
     op.create_foreign_key(
-        constraint, table, ref_table,
-        [column], [ref_column], ondelete="CASCADE",
+        constraint,
+        table,
+        ref_table,
+        [column],
+        [ref_column],
+        ondelete="CASCADE",
     )
 
 
