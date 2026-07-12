@@ -3,26 +3,65 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { apiClient, type Agent } from "@/lib/api";
 import { CopilotChat } from "@copilotkit/react-ui";
+import type { AssistantMessageProps } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
 import {
   Hash,
   Plus,
 } from "lucide-react";
+import CustomAssistantMessage from "@/components/custom-assistant-message";
 
 interface Thread {
   id: string;
   title: string;
 }
 
+// Lazy initial state from localStorage — no effect needed
+function loadSession() {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = localStorage.getItem("lh_session");
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ChatPage() {
+  // Restore session synchronously via lazy initial state
+  const [session] = useState(loadSession);
+
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<string>("");
-  const [learnerId, setLearnerId] = useState<string>("");
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [activeThread, setActiveThread] = useState<string>("");
+  const [selectedAgent, setSelectedAgent] = useState<string>(
+    session?.selectedAgent ?? "",
+  );
+  const [learnerId, setLearnerId] = useState<string>(
+    session?.learnerId ?? "",
+  );
+  const [threads, setThreads] = useState<Thread[]>(session?.threads ?? []);
+  const [activeThread, setActiveThread] = useState<string>(
+    session?.activeThread ?? "",
+  );
   const [showNewThread, setShowNewThread] = useState(false);
   const [newThreadTitle, setNewThreadTitle] = useState("");
   const threadCounter = useRef(0);
+
+  // Restore thread counter to prevent ID collisions
+  useEffect(() => {
+    if (session?.threads?.length > 0) {
+      const maxNum = session.threads.reduce((max: number, t: Thread) => {
+        const m = t.id?.match(/thread_(\d+)/);
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 0);
+      threadCounter.current = maxNum;
+    }
+    // If no threads after hydration, create the first one
+    if (threads.length === 0) {
+      const id = `thread_${++threadCounter.current}`;
+      setThreads([{ id, title: "General" }]);
+      setActiveThread(id);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load agents
   useEffect(() => {
@@ -37,27 +76,7 @@ export default function ChatPage() {
       .catch(() => setAgents([]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore session
-  useEffect(() => {
-    const saved = localStorage.getItem("lh_session");
-    if (saved) {
-      try {
-        const s = JSON.parse(saved);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        if (s.learnerId) setLearnerId(s.learnerId);
-
-        if (s.threads) setThreads(s.threads);
-
-        if (s.activeThread) setActiveThread(s.activeThread);
-
-        if (s.selectedAgent) setSelectedAgent(s.selectedAgent);
-      } catch {
-        // ignore corrupt session
-      }
-    }
-  }, []);
-
-  // Persist session
+  // Persist session whenever it changes
   useEffect(() => {
     localStorage.setItem(
       "lh_session",
@@ -90,13 +109,6 @@ export default function ChatPage() {
     setNewThreadTitle("");
     setShowNewThread(true);
   };
-
-  // Auto-create first thread on mount if none exist
-  useEffect(() => {
-    if (threads.length === 0) {
-      createThread("General");
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentThread = threads.find((t) => t.id === activeThread);
 
@@ -179,7 +191,6 @@ export default function ChatPage() {
               className="flex-1 overflow-hidden"
               style={
                 {
-                  // Override CopilotKit CSS variables for our dark theme
                   "--copilot-kit-background-color": "#08090a",
                   "--copilot-kit-primary-color": "#10b981",
                   "--copilot-kit-secondary-color": "#0f1011",
@@ -194,6 +205,9 @@ export default function ChatPage() {
             >
               <CopilotChat
                 className="h-full"
+                AssistantMessage={
+                  CustomAssistantMessage as React.ComponentType<AssistantMessageProps>
+                }
                 instructions={
                   selectedAgent
                     ? `You are a learning agent (agent_id: ${selectedAgent}). Help the learner practice and learn.`
