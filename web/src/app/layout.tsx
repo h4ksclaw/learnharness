@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
+import { CopilotKit } from "@copilotkit/react-core";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -26,10 +27,12 @@ export default function RootLayout({
         className="antialiased"
         style={{ fontFamily: "var(--font-sans)", fontFeatureSettings: '"cv01", "ss03"' }}
       >
-        <div className="flex h-screen">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden">{children}</main>
-        </div>
+        <CopilotKit runtimeUrl="/api/copilotkit">
+          <div className="flex h-screen">
+            <Sidebar />
+            <main className="flex-1 overflow-hidden">{children}</main>
+          </div>
+        </CopilotKit>
       </body>
     </html>
   );
