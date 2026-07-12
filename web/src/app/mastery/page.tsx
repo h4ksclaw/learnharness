@@ -63,17 +63,9 @@ export default function MasteryPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Brain className="h-5 w-5 text-emerald-400" />
-          <h1 className="text-lg font-semibold">Knowledge State</h1>
-        </div>
-        <input
-          value={learnerId}
-          onChange={(e) => setLearnerId(e.target.value)}
-          placeholder="Learner ID"
-          className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs focus:border-emerald-600 focus:outline-none"
-        />
+      <header className="flex items-center gap-3 border-b border-zinc-800 px-6 py-4">
+        <Brain className="h-5 w-5 text-emerald-400" />
+        <h1 className="text-lg font-semibold">Knowledge State</h1>
       </header>
 
       <div className="flex-1 overflow-y-auto p-6">
@@ -81,10 +73,10 @@ export default function MasteryPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Brain className="mb-4 h-12 w-12 text-zinc-700" />
             <p className="text-sm text-zinc-500">
-              Enter a learner ID to view their knowledge state.
+              Start a chat first to build your knowledge profile.
             </p>
             <p className="mt-1 text-xs text-zinc-600">
-              You can find it after chatting in the Chat tab.
+              Your progress will appear here automatically.
             </p>
           </div>
         ) : loading ? (

@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { apiClient, type OutboundMessage } from "@/lib/api";
-import { Settings, Bell, Server, Trash2 } from "lucide-react";
+import { Settings, Bell, Trash2, ExternalLink } from "lucide-react";
 
 export default function SettingsPage() {
-  const [apiUrl, setApiUrl] = useState(
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
-  );
   const [notifications, setNotifications] = useState<OutboundMessage[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
@@ -38,27 +35,6 @@ export default function SettingsPage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl space-y-8">
-          {/* API Connection */}
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <Server className="h-4 w-4 text-zinc-500" />
-              <h2 className="text-sm font-semibold">API Connection</h2>
-            </div>
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-              <label className="mb-1 block text-xs text-zinc-500">
-                Backend URL
-              </label>
-              <input
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-              />
-              <p className="mt-2 text-xs text-zinc-600">
-                Set NEXT_PUBLIC_API_URL at build time to change the default.
-              </p>
-            </div>
-          </section>
-
           {/* Notifications */}
           <section>
             <div className="mb-3 flex items-center justify-between">
@@ -123,17 +99,17 @@ export default function SettingsPage() {
             </h2>
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-400">
               <p>
-                LearnHarness — open-source adaptive learning platform with FSRS
-                spaced repetition, BKT knowledge tracing, and LLM-powered
-                knowledge graphs.
+                LearnHarness — an open-source adaptive learning platform.
+                Create AI tutors that track progress and adapt to each learner.
               </p>
-              <p className="mt-2 text-xs text-zinc-600">
+              <p className="mt-3">
                 <a
                   href="https://github.com/h4ksclaw/learnharness"
-                  className="text-emerald-400 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:underline"
                   target="_blank"
                   rel="noreferrer"
                 >
+                  <ExternalLink className="h-3.5 w-3.5" />
                   github.com/h4ksclaw/learnharness
                 </a>
               </p>

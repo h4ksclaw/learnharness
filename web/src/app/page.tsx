@@ -137,8 +137,10 @@ export default function AgentsPage() {
                   </button>
                   <button
                     onClick={async () => {
-                      await apiClient.deleteAgent(agent.id);
-                      loadAgents();
+                      if (confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) {
+                        await apiClient.deleteAgent(agent.id);
+                        loadAgents();
+                      }
                     }}
                     className="rounded-lg p-2 text-zinc-400 hover:bg-red-900/30 hover:text-red-400"
                   >
