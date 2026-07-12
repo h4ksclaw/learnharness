@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: gen-openapi-client
         name: Generate OpenAPI client (web)
-        entry: bash -c 'cd web && bash scripts/gen-openapi-client.sh || true'
+        entry: bash -c 'cd web && bash scripts/gen-openapi-client.sh'
         language: system
         files: ^app/routers/|^app/schemas.py$
         pass_filenames: false

@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -6,7 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # ─── Pre-commit: ruff, ruff-format, mypy, trailing whitespace, etc. ───
   pre-commit:
     runs-on: ubuntu-latest
     steps:
@@ -14,17 +19,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
-          pip install pre-commit
-      - name: Run pre-commit on all files
-        run: pre-commit run --all-files --show-diff-on-failure
+      - name: Install Python deps
+        run: pip install -e ".[dev]"
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files --show-diff-on-failure
 
-  test:
+  # ─── Python tests (multiple Python versions) ───
+  python-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -34,13 +41,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install dependencies
         run: |
           pip install -e ".[dev]"
           pip install aiosqlite
-      - name: Verify alembic migrations are clean
+      - name: Verify alembic migrations parse
         run: |
-          python -c "import ast; import glob; [ast.parse(open(f).read()) for f in glob.glob('alembic/versions/*.py')]; print('All migrations parse OK')"
+          python -c "import ast, glob; [ast.parse(open(f).read()) for f in glob.glob('alembic/versions/*.py')]; print('All migrations parse OK')"
       - name: Run unit tests
         env:
           DATABASE_URL: "sqlite+aiosqlite:///test.db"
@@ -54,18 +62,86 @@ jobs:
             --ignore=tests/test_learning_simulation.py \
             --tb=short
 
-  web:
+  # ─── Web: lint + typecheck + build ───
+  web-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install and build
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
         working-directory: web
-        run: |
-          npm ci
-          npm run build
-      - name: Lint
+        run: npm ci
+      - name: ESLint
         working-directory: web
         run: npm run lint
+      - name: TypeScript type-check
+        working-directory: web
+        run: npx tsc --noEmit
+      - name: Next.js build
+        working-directory: web
+        run: npm run build
+
+  # ─── Docker integration: DB + pgvector ───
+  docker-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start DB
+        run: docker compose up -d db
+      - name: Wait for healthy
+        run: |
+          for i in $(seq 1 30); do
+            docker compose ps db | grep -q "healthy" && break
+            sleep 2
+          done
+          docker compose ps
+      - name: Verify pgvector extension
+        run: |
+          docker compose exec -T db psql -U lh -d learnharness -c "SELECT * FROM pg_extension WHERE extname='vector';"
+
+  # ─── Build & Publish to GHCR ───
+  build-and-publish:
+    needs: [pre-commit, python-tests, web-check]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        target: [api, worker, channels]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.target }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+      - name: Build and push ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: ${{ matrix.target }}
