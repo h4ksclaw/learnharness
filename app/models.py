@@ -61,7 +61,9 @@ class Agent(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    learners: Mapped[list["Learner"]] = relationship(back_populates="agent")
+    learners: Mapped[list["Learner"]] = relationship(
+        back_populates="agent", cascade="all, delete-orphan"
+    )
 
 
 class Learner(Base):
@@ -70,7 +72,7 @@ class Learner(Base):
     __tablename__ = "learners"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"))
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(200), default="Learner")
     overall_mastery: Mapped[float] = mapped_column(Float, default=0.0)
     preferences: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
@@ -96,7 +98,7 @@ class Concept(Base):
     __tablename__ = "concepts"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), index=True)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(300))
     category: Mapped[str] = mapped_column(String(100), default="general")
     description: Mapped[str] = mapped_column(Text, default="")
@@ -111,8 +113,12 @@ class ConceptEdge(Base):
     __tablename__ = "concept_edges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source_id: Mapped[str] = mapped_column(ForeignKey("concepts.id"), index=True)
-    target_id: Mapped[str] = mapped_column(ForeignKey("concepts.id"), index=True)
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
     # prerequisite, related, part_of, contrasts_with
     edge_type: Mapped[str] = mapped_column(String(50), default="related")
     weight: Mapped[float] = mapped_column(Float, default=1.0)
@@ -124,8 +130,12 @@ class Mastery(Base):
     __tablename__ = "mastery"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    learner_id: Mapped[str] = mapped_column(ForeignKey("learners.id"), index=True)
-    concept_id: Mapped[str] = mapped_column(ForeignKey("concepts.id"), index=True)
+    learner_id: Mapped[str] = mapped_column(
+        ForeignKey("learners.id", ondelete="CASCADE"), index=True
+    )
+    concept_id: Mapped[str] = mapped_column(
+        ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
     p_mastery: Mapped[float] = mapped_column(Float, default=0.5)
     p_transit: Mapped[float] = mapped_column(Float, default=0.1)
     p_slip: Mapped[float] = mapped_column(Float, default=0.1)
@@ -143,8 +153,12 @@ class ReviewItem(Base):
     __tablename__ = "review_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    learner_id: Mapped[str] = mapped_column(ForeignKey("learners.id"), index=True)
-    concept_id: Mapped[str] = mapped_column(ForeignKey("concepts.id"), index=True)
+    learner_id: Mapped[str] = mapped_column(
+        ForeignKey("learners.id", ondelete="CASCADE"), index=True
+    )
+    concept_id: Mapped[str] = mapped_column(
+        ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
     content: Mapped[dict[str, Any]] = mapped_column(JSONB)
     stability: Mapped[float] = mapped_column(Float, default=0.0)
     difficulty: Mapped[float] = mapped_column(Float, default=0.0)
@@ -165,8 +179,10 @@ class Interaction(Base):
     __tablename__ = "interactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    learner_id: Mapped[str] = mapped_column(ForeignKey("learners.id"), index=True)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), index=True)
+    learner_id: Mapped[str] = mapped_column(
+        ForeignKey("learners.id", ondelete="CASCADE"), index=True
+    )
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"), index=True)
     session_id: Mapped[str] = mapped_column(String(64), index=True)
     # chat, quiz, flashcard, correction, heartbeat, tool_result
     type: Mapped[str] = mapped_column(String(30), default="chat")
@@ -187,8 +203,12 @@ class ErrorPattern(Base):
     __tablename__ = "error_patterns"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    learner_id: Mapped[str] = mapped_column(ForeignKey("learners.id"), index=True)
-    concept_id: Mapped[str] = mapped_column(ForeignKey("concepts.id"), index=True)
+    learner_id: Mapped[str] = mapped_column(
+        ForeignKey("learners.id", ondelete="CASCADE"), index=True
+    )
+    concept_id: Mapped[str] = mapped_column(
+        ForeignKey("concepts.id", ondelete="CASCADE"), index=True
+    )
     error_type: Mapped[str] = mapped_column(String(100))
     count: Mapped[int] = mapped_column(Integer, default=1)
     examples: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
@@ -204,7 +224,7 @@ class OutboundMessage(Base):
     __tablename__ = "outbound_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id"), index=True)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agents.id", ondelete="CASCADE"), index=True)
     learner_id: Mapped[str | None] = mapped_column(ForeignKey("learners.id"), nullable=True)
     channel: Mapped[str] = mapped_column(String(50))  # irc, telegram, web, all
     message: Mapped[str] = mapped_column(Text)

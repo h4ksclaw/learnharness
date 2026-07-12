@@ -7,7 +7,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN NEXT_PUBLIC_API_URL=/api npm run build
+RUN NEXT_PUBLIC_API_URL=/api BACKEND_URL=http://api:8000 npm run build
 
 # --- Runtime stage ---
 FROM node:22-slim AS runner
