@@ -15,12 +15,12 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r border-zinc-800 bg-zinc-950">
+    <aside className="flex h-screen w-60 flex-col border-r border-white/[0.05] bg-[#0f1011]">
       <div className="flex h-14 items-center gap-2 px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-black">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#10b981] text-sm font-bold text-black">
           LH
         </div>
-        <span className="text-sm font-semibold text-zinc-200">
+        <span className="text-sm font-semibold text-[#f7f8f8]">
           LearnHarness
         </span>
       </div>
@@ -35,10 +35,10 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                  ? "border-l-2 border-[#10b981] bg-[#191a1b] text-[#f7f8f8]"
+                  : "text-[#8a8f98] hover:bg-white/[0.03] hover:text-[#f7f8f8]"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -47,13 +47,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="border-t border-zinc-800 p-3">
-        <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-zinc-500">
-          <div className="h-2 w-2 rounded-full bg-emerald-500" />
-          Connected
-        </div>
-      </div>
     </aside>
   );
 }

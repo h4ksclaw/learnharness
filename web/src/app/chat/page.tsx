@@ -181,12 +181,12 @@ export default function ChatPage() {
   return (
     <div className="flex h-full">
       {/* Threads sidebar */}
-      <div className="flex w-60 flex-col border-r border-zinc-800 bg-zinc-950">
+      <div className="flex w-60 flex-col border-r border-white/[0.05] bg-[#0f1011]">
         <div className="flex h-14 items-center justify-between px-4">
-          <span className="text-sm font-semibold">Threads</span>
+          <span className="text-sm font-semibold text-[#f7f8f8]">Threads</span>
           <button
             onClick={() => openNewThreadModal(null)}
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+            className="rounded p-1 text-[#8a8f98] hover:bg-white/[0.06] hover:text-[#f7f8f8]"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -197,7 +197,7 @@ export default function ChatPage() {
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 focus:border-emerald-600 focus:outline-none"
+            className="w-full rounded-md border border-white/[0.08] bg-[#191a1b] px-2 py-1.5 text-xs text-[#d0d6e0] focus:border-[#10b981] focus:outline-none"
           >
             <option value="">Select agent...</option>
             {agents.map((a) => (
@@ -210,7 +210,7 @@ export default function ChatPage() {
 
         <div className="flex-1 overflow-y-auto px-2">
           {topLevelThreads.length === 0 ? (
-            <p className="px-2 py-4 text-xs text-zinc-600">
+            <p className="px-2 py-4 text-xs text-[#62666d]">
               No threads yet. Click + to start.
             </p>
           ) : (
@@ -222,10 +222,10 @@ export default function ChatPage() {
                 <div key={t.id} className="mb-1">
                   <button
                     onClick={() => setActiveThread(t.id)}
-                    className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm ${
+                    className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
                       activeThread === t.id
-                        ? "bg-zinc-800 text-white"
-                        : "text-zinc-400 hover:bg-zinc-900"
+                        ? "bg-[#191a1b] text-[#f7f8f8]"
+                        : "text-[#8a8f98] hover:bg-white/[0.03] hover:text-[#d0d6e0]"
                     }`}
                   >
                     <Hash className="h-3 w-3 shrink-0" />
@@ -236,10 +236,10 @@ export default function ChatPage() {
                     <button
                       key={st.id}
                       onClick={() => setActiveThread(st.id)}
-                      className={`flex w-full items-center gap-1.5 rounded-lg py-1.5 pl-6 pr-2 text-left text-xs ${
+                      className={`flex w-full items-center gap-1.5 rounded-md py-1.5 pl-6 pr-2 text-left text-xs transition-colors ${
                         activeThread === st.id
-                          ? "bg-zinc-800 text-white"
-                          : "text-zinc-500 hover:bg-zinc-900"
+                          ? "bg-[#191a1b] text-[#f7f8f8]"
+                          : "text-[#62666d] hover:bg-white/[0.03] hover:text-[#d0d6e0]"
                       }`}
                     >
                       <CornerDownRight className="h-3 w-3 shrink-0" />
@@ -258,19 +258,19 @@ export default function ChatPage() {
         {currentThread ? (
           <>
             {/* Thread header */}
-            <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-6">
+            <div className="flex h-14 items-center justify-between border-b border-white/[0.05] px-6">
               <div className="flex items-center gap-2">
-                <Hash className="h-4 w-4 text-zinc-500" />
-                <span className="font-semibold">{currentThread.title}</span>
+                <Hash className="h-4 w-4 text-[#8a8f98]" />
+                <span className="font-semibold text-[#f7f8f8]">{currentThread.title}</span>
                 {currentThread.messages.length > 0 && (
-                  <span className="text-xs text-zinc-600">
+                  <span className="text-xs text-[#62666d]">
                     {currentThread.messages.length} messages
                   </span>
                 )}
               </div>
               <button
                 onClick={() => openNewThreadModal(currentThread.id)}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-[#8a8f98] hover:bg-white/[0.06] hover:text-[#f7f8f8]"
               >
                 <CornerDownRight className="h-3 w-3" />
                 New subthread
@@ -281,7 +281,7 @@ export default function ChatPage() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {currentThread.messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <p className="text-sm text-zinc-600">
+                  <p className="text-sm text-[#62666d]">
                     Send a message to start learning
                   </p>
                 </div>
@@ -306,9 +306,9 @@ export default function ChatPage() {
                   {/* Typing indicator */}
                   {sending && (
                     <div className="flex justify-start">
-                      <div className="flex items-center gap-2 rounded-2xl bg-zinc-800 px-4 py-3">
-                        <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
-                        <span className="text-sm text-zinc-500">
+                      <div className="flex items-center gap-2 rounded-2xl border border-white/[0.08] bg-[#191a1b] px-4 py-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#8a8f98]" />
+                        <span className="text-sm text-[#8a8f98]">
                           Agent is thinking...
                         </span>
                       </div>
@@ -320,7 +320,7 @@ export default function ChatPage() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-zinc-800 p-4">
+            <div className="border-t border-white/[0.05] bg-[#0f1011] p-4">
               <div className="flex items-end gap-2">
                 <textarea
                   value={input}
@@ -338,12 +338,12 @@ export default function ChatPage() {
                   }
                   disabled={!selectedAgent || sending}
                   rows={1}
-                  className="flex-1 resize-none rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm focus:border-emerald-600 focus:outline-none disabled:opacity-50"
+                  className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-[#08090a] px-4 py-2.5 text-sm text-[#f7f8f8] placeholder-[#62666d] focus:border-[#10b981] focus:outline-none disabled:opacity-50"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!input.trim() || sending || !selectedAgent}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-30"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#10b981] text-white hover:bg-[#34d399] disabled:opacity-30"
                 >
                   {sending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -356,12 +356,12 @@ export default function ChatPage() {
           </>
         ) : (
           <div className="flex flex-col items-center justify-center text-center">
-            <p className="text-sm text-zinc-600">
+            <p className="text-sm text-[#62666d]">
               Create a thread to start chatting
             </p>
             <button
               onClick={() => openNewThreadModal(null)}
-              className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+              className="mt-3 flex items-center gap-2 rounded-md bg-[#10b981] px-4 py-2 text-sm font-medium text-white hover:bg-[#34d399]"
             >
               <Plus className="h-4 w-4" />
               New Thread
@@ -377,10 +377,10 @@ export default function ChatPage() {
           onClick={() => setShowNewThread(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
+            className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#191a1b] p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-3 text-lg font-semibold">
+            <h2 className="mb-3 text-lg font-semibold text-[#f7f8f8]">
               {newThreadParent ? "New Subthread" : "New Thread"}
             </h2>
             <input
@@ -393,12 +393,12 @@ export default function ChatPage() {
                 }
               }}
               autoFocus
-              className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+              className="w-full rounded-md border border-white/[0.08] bg-[#0f1011] px-3 py-2 text-sm text-[#f7f8f8] placeholder-[#62666d] focus:border-[#10b981] focus:outline-none"
             />
             <div className="mt-4 flex justify-end gap-3">
               <button
                 onClick={() => setShowNewThread(false)}
-                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:text-white"
+                className="rounded-md px-4 py-2 text-sm text-[#8a8f98] hover:text-[#f7f8f8]"
               >
                 Cancel
               </button>
@@ -408,7 +408,7 @@ export default function ChatPage() {
                   createThread(newThreadTitle, newThreadParent)
                 }
                 disabled={!newThreadTitle.trim()}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+                className="rounded-md bg-[#10b981] px-4 py-2 text-sm font-medium text-white hover:bg-[#34d399] disabled:opacity-40"
               >
                 Create
               </button>
@@ -441,7 +441,7 @@ function MessageBubble({
               ? "bg-red-900/30 text-red-300"
               : isUser
                 ? "bg-emerald-600 text-white"
-                : "bg-zinc-800 text-zinc-100"
+                : "border border-white/[0.08] bg-[#191a1b] text-[#f7f8f8]"
           }`}
         >
           <p className="whitespace-pre-wrap">{message.content}</p>
@@ -461,13 +461,13 @@ function MessageBubble({
                   }`}
                 />
                 <div>
-                  <span className="text-zinc-500 line-through">
+                  <span className="text-[#62666d] line-through">
                     {c.original}
                   </span>
-                  <span className="mx-1 text-zinc-600">→</span>
-                  <span className="text-emerald-400">{c.corrected}</span>
+                  <span className="mx-1 text-[#62666d]">→</span>
+                  <span className="text-[#10b981]">{c.corrected}</span>
                   {c.rule && (
-                    <span className="block text-zinc-500">{c.rule}</span>
+                    <span className="block text-[#8a8f98]">{c.rule}</span>
                   )}
                 </div>
               </div>
@@ -483,10 +483,10 @@ function MessageBubble({
                 key={i}
                 className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
                   d.direction === "up"
-                    ? "bg-emerald-900/30 text-emerald-400"
+                    ? "bg-[#10b981]/10 text-[#10b981]"
                     : d.direction === "down"
                       ? "bg-red-900/30 text-red-400"
-                      : "bg-zinc-800 text-zinc-400"
+                      : "bg-white/[0.06] text-[#8a8f98]"
                 }`}
               >
                 {d.direction === "up" ? (
